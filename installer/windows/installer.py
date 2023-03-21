@@ -21,7 +21,7 @@ class WindowsFolderBuilder:
     URL_VSCODE  = r'https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive'
     #URL_FFMPEG  = r'https://github.com/GyanD/codexffmpeg/releases/download/4.4/ffmpeg-4.4-full_build.zip'
     #URL_7ZIP    = r'https://github.com/iperov/DeepFaceLive/releases/download/7za/7za.zip'
-    URL_MSVC    = r'https://github.com/iperov/DeepXTools/releases/download/bin/msvc.zip'
+    URL_MSVC    = r'https://github.com/iperov/DeepXTools/releases/download/msvc/msvc.zip'
 
     URLS_PYTHON = {'3.10.9' : r'https://www.python.org/ftp/python/3.10.9/python-3.10.9-embed-amd64.zip'}
 

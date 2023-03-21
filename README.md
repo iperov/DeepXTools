@@ -1,4 +1,4 @@
-<table align="center" border="0" width="100%">
+<table border=0 align="center" border="0" width="100%">
 
 <tr><td colspan=2 align="center">
 

@@ -6,7 +6,6 @@ import subprocess
 import time
 import urllib.request
 import zipfile
-from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -18,7 +17,7 @@ class WindowsFolderBuilder:
 
     # Constants
     URL_PIP     = r'https://bootstrap.pypa.io/get-pip.py'
-    
+
     URL_VSCODE  = r'https://code.visualstudio.com/sha/download?build=stable&os=win32-x64-archive'
     #URL_FFMPEG  = r'https://github.com/GyanD/codexffmpeg/releases/download/4.4/ffmpeg-4.4-full_build.zip'
     #URL_7ZIP    = r'https://github.com/iperov/DeepFaceLive/releases/download/7za/7za.zip'
@@ -42,14 +41,14 @@ class WindowsFolderBuilder:
     def __init__(self,  release_path : Path,
                         cache_path : Path,
                         python_ver : str):
-        
+
         if release_path.exists():
             input(f'{release_path} will be removed. Press enter to continue.')
             shutil.rmtree(release_path)
         while release_path.exists():
             time.sleep(0.1)
         release_path.mkdir(parents=True)
-        
+
         self._release_path = release_path
         self._python_ver = python_ver
         self._cache_path = cache_path
@@ -78,7 +77,7 @@ class WindowsFolderBuilder:
         f = None
         while True:
             try:
-                
+
                 url_request = urllib.request.urlopen(url, context=ssl._create_unverified_context())
                 url_size = int( url_request.getheader('content-length') )
 
@@ -285,7 +284,7 @@ cmd
         print ("Installing pip.\n")
 
         python_pip_path = self._python_path / 'get-pip.py'
-        
+
         self.download_file(self.URL_PIP, python_pip_path)
 
         subprocess.Popen(args='python.exe get-pip.py', cwd=str(self._python_path), shell=True, env=self.env).wait()
@@ -384,15 +383,15 @@ start "" /D "%~dp0" "%INTERNAL%\{self.DIRNAME_INTERNAL_VSCODE}\Code.exe" --disab
         # Create vscode project
         if folders is None:
             folders = ['.']
-            
+
         s_folders = ',\n'.join( f'{{ "path" : "{f}" }}' for f in folders )
-            
+
 
         (self._internal_path / 'project.code-workspace').write_text (
 fr'''{{
 	"folders": [{s_folders}
     ],
-    
+
 	"settings": {{
         "breadcrumbs.enabled": false,
         "debug.showBreakpointsInOverviewRuler": true,
@@ -433,7 +432,7 @@ fr'''{{
 			"**/*.dat": true,
 			"**/*.h5": true,
             "**/*.npy": true
-		}},		
+		}},
 	}}
 }}
 ''')
@@ -467,61 +466,52 @@ def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cud
                                    python_ver=python_ver)
 
     # PIP INSTALLATIONS
-    # builder.install_pip_package('numpy==1.23.5')
-    # builder.install_pip_package('numba==0.56.4') 
-    # builder.install_pip_package('PySide6==6.4.1')
-    # builder.install_pip_package('opencv-python==4.7.0.68')
-    # builder.install_pip_package('opencv-contrib-python==4.7.0.68')
-    # builder.install_pip_package('torch==1.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html')
-    
-    # if backend == 'cuda':
-    #     print('Moving CUDA dlls from Torch to shared directory')
-    #     cuda_bin_path = builder.get_cuda_bin_path()
-    #     torch_lib_path = builder.get_python_site_packages_path() / 'torch' / 'lib'
+    builder.install_pip_package('numpy==1.23.5')
+    builder.install_pip_package('numba==0.56.4')
+    builder.install_pip_package('PySide6==6.4.1')
+    builder.install_pip_package('opencv-python==4.7.0.68')
+    builder.install_pip_package('opencv-contrib-python==4.7.0.68')
+    builder.install_pip_package('torch==1.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html')
 
-    #     for cu_file in torch_lib_path.glob("**/cu*64*.dll"):
-    #         target = cuda_bin_path / cu_file.name
-    #         print (f'Moving {target}')
-    #         shutil.move (str(cu_file), str(target) )
+    if backend == 'cuda':
+        print('Moving CUDA dlls from Torch to shared directory')
+        cuda_bin_path = builder.get_cuda_bin_path()
+        torch_lib_path = builder.get_python_site_packages_path() / 'torch' / 'lib'
 
-    #     for file in torch_lib_path.glob("**/nvrtc*.dll"):
-    #         target = cuda_bin_path / file.name
-    #         print (f'Moving {target}')
-    #         shutil.move (str(file), str(target) )
+        for cu_file in torch_lib_path.glob("**/cu*64*.dll"):
+            target = cuda_bin_path / cu_file.name
+            print (f'Moving {target}')
+            shutil.move (str(cu_file), str(target) )
 
-    #     for file in torch_lib_path.glob("**/zlibwapi.dll"):
-    #         target = cuda_bin_path / file.name
-    #         print (f'Copying {target}')
-    #         shutil.copy (str(file), str(target) )
-            
-            
+        for file in torch_lib_path.glob("**/nvrtc*.dll"):
+            target = cuda_bin_path / file.name
+            print (f'Moving {target}')
+            shutil.move (str(file), str(target) )
+
+        for file in torch_lib_path.glob("**/zlibwapi.dll"):
+            target = cuda_bin_path / file.name
+            print (f'Copying {target}')
+            shutil.copy (str(file), str(target) )
+
+
     repo_path = builder.get_internal_path() / 'repo'
 
     print('Copying DeepXTools repository.')
     builder.copyfiletree(Path(__file__).parent.parent.parent, repo_path)
     builder.rmdir_in_all_subdirs(repo_path, '.git')
-    
+
     print('Creating files.')
-    
+
     release_path = builder.get_release_path()
     workspace_path = release_path / 'workspace'
     workspace_path.mkdir(parents=True, exist_ok=True)
-    
+
     builder.create_run_python_script('MaskEditor.bat', 'repo\\DeepXTools\\main.py', 'run MaskEditor --workspace-dir="%~dp0workspace"')
     builder.create_run_python_script('DeepRoto.bat', 'repo\\DeepXTools\\main.py', 'run DeepRoto  --workspace-dir="%~dp0workspace"')
-   
-    builder.install_vscode(folders=['repo/DeepXTools','repo'])
-   
-    builder.cleanup()
-    
-    import code
-    code.interact(local=dict(globals(), **locals()))
-    return
 
-       
-    
-    
-    
+    builder.install_vscode(folders=['repo/DeepXTools','repo'])
+
+    builder.cleanup()
 
 
 class fixPathAction(argparse.Action):

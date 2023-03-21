@@ -28,6 +28,6 @@ powershell -Command Expand-Archive '%TEMP_REPO_ZIP%' -DestinationPath '%TEMP_REP
 
 rem powershell -Command Copy-Item 'D:\DevelopPPP\projects\DeepXTools\_internal\github_project' -Destination '%TEMP_REPO%' -Recurse -Force
 
-"%TEMP_PYTHON_EXE%" "%TEMP_REPO_INSTALLER_PY%" --release-dir "%CD%DeepXTools" --cache-dir "%TEMP_DIR%_cache"
+"%TEMP_PYTHON_EXE%" "%TEMP_REPO_INSTALLER_PY%" --release-dir "%CD%DeepXTools" --cache-dir "%TEMP_DIR%_cache" --backend cuda
 
 rmdir "%TEMP_DIR%" /s /q 2>nul

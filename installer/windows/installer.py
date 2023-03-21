@@ -471,9 +471,10 @@ def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cud
     builder.install_pip_package('PySide6==6.4.1')
     builder.install_pip_package('opencv-python==4.7.0.68')
     builder.install_pip_package('opencv-contrib-python==4.7.0.68')
-    builder.install_pip_package('torch==1.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html')
 
     if backend == 'cuda':
+        builder.install_pip_package('torch==1.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html')
+        
         print('Moving CUDA dlls from Torch to shared directory')
         cuda_bin_path = builder.get_cuda_bin_path()
         torch_lib_path = builder.get_python_site_packages_path() / 'torch' / 'lib'
@@ -522,8 +523,10 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('--release-dir', action=fixPathAction, default=None)
     p.add_argument('--cache-dir', action=fixPathAction, default=None)
+    p.add_argument('--backend', choices=['cuda', 'directml'], default='cuda')
 
     args = p.parse_args()
 
     install_deepxtools(release_dir=args.release_dir,
-                       cache_dir=args.cache_dir)
+                       cache_dir=args.cache_dir,
+                       backend=args.backend)

@@ -2,6 +2,8 @@
 
 <tr><td colspan=2 align="center">
 
+<img src="doc/images/blank_fill.png"></img>
+
 # DeepXTools
 
 Various deep learning tools.

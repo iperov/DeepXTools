@@ -32,7 +32,7 @@ class QxFileStateManager(qx.QVBox):
                     .add(qx.QPushButton().set_text('@(New)').inline(lambda btn: btn.mx_clicked.listen(lambda: mgr.reset())).v_compact())        
                 .next_col()
                     .add(qx.QVBox()
-                            .add(load_btn := qx.QPushButton().set_text('@(Load)').inline(lambda btn: btn.mx_clicked.listen(lambda: load_menu.show())).v_compact())
+                            .add(load_btn := qx.QPushButton().set_text('@(Load)...').inline(lambda btn: btn.mx_clicked.listen(lambda: load_menu.show())).v_compact())
                             .add(qx.QProgressBarMxProgress(mgr.mx_load_progress, hide_inactive=True))
                             .inline(lambda _: mgr.mx_load_progress.mx_started.reflect(lambda started: load_btn.set_visible(not started)).dispose_with(holder_null_child)))
                     .add(qx.QPathLabel(mgr.get_state_path()), align=qx.Align.TopE))            

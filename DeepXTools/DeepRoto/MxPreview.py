@@ -133,6 +133,7 @@ class MxPreview(mx.Disposable):
             yield ax.cancel(data_gen_task.error)
 
     def _on_source_type(self, new_source_type, _):
+        self.get_state()
         self._source_type_disp_bag = self._source_type_disp_bag.dispose_and_new().dispose_with(self)
 
         if new_source_type == MxPreview.SourceType.DataGenerator:
@@ -143,9 +144,6 @@ class MxPreview(mx.Disposable):
                                                     on_close=self._on_directory_path_close,
                                                     on_open=self._on_directory_path_open,
                                                     ).dispose_with(self._source_type_disp_bag)
-
-
-            self._source_type_disp_bag.call_on_dispose(lambda: self.get_state())
 
             if (directory_path := self._directory_state.get('directory_path', None)) is not None:
                 self._mx_directory_path.open(directory_path)

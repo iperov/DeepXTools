@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import cv2
+import numba as nb
 import numpy as np
 import numpy.random as nprnd
 
@@ -37,8 +38,8 @@ class TransformParams:
                     scale_var : float = 0.4,
                     rot_deg_var : float = 15.0,
                     rnd_state : np.random.RandomState|None = None,) -> TransformParams:
-        rnd_state = np.random.RandomState()
-        rnd_state.set_state(rnd_state.get_state()) if rnd_state is not None else ...
+        if rnd_state is None:
+            rnd_state = np.random.RandomState()
 
         return TransformParams( tx = rnd_state.uniform(-tx_var, tx_var),
                                 ty = rnd_state.uniform(-ty_var, ty_var),
@@ -74,19 +75,22 @@ class Geo:
                         transform_params : TransformParams,
                         deform_transform_params : TransformParams = None,
                 ):
+        self._rnd_state = np.random.RandomState()
 
         if deform_transform_params is None:
-            deform_transform_params = TransformParams.generate(   tx_var = 0.2,
+            deform_transform_params = TransformParams.generate( tx_var = 0.2,
                                                                 ty_var = 0.2,
-                                                                scale_var = 0.3,
-                                                                rot_deg_var = 180.0)
+                                                                scale_var = 0.2,
+                                                                rot_deg_var = 180.0,
+                                                                rnd_state=self._rnd_state)
+        
         
         self._offset_transform_params = offset_transform_params
         self._transform_params = transform_params
         self._deform_transform_params = deform_transform_params
-        self._deform_grid_cell_count = nprnd.randint(3,8)
-        self._rnd_state = np.random.RandomState().get_state()
-
+        self._deform_grid_cell_count = self._rnd_state.randint(1,6)
+        
+        
 
     def transform(self, img : NPImage,
                         OW : int,
@@ -115,7 +119,7 @@ class Geo:
         tr_params = self._transform_params.scaled(transform_intensity)
 
         rnd_state = np.random.RandomState()
-        rnd_state.set_state(self._rnd_state)
+        rnd_state.set_state(self._rnd_state.get_state())
 
         remap_grid, mask = _gen_remap_grid(W, H, OW, OH,
                                             tr_params=offset_tr_params + tr_params,
@@ -140,8 +144,8 @@ def _gen_remap_grid(W, H, OW, OH,
     """Generate remap grid and mask"""
 
     # Make identity uniform remap grid in source space
-    remap_grid = np.stack(np.meshgrid(np.linspace(0., 1.0, W, dtype=np.float32),
-                                      np.linspace(0., 1.0, H, dtype=np.float32), ), -1)
+    remap_grid = np.stack(np.meshgrid(np.linspace(0., W-1, W, dtype=np.float32),
+                                      np.linspace(0., H-1, H, dtype=np.float32), ), -1)
 
     # Make transform mat
     mat = (Affine2DMat()    .translated( W*(0.5+tr_params._tx), H*(0.5+tr_params._ty) )
@@ -149,73 +153,95 @@ def _gen_remap_grid(W, H, OW, OH,
                             .rotated(tr_params._rot_deg)
                             .translated(-0.5*OW, -0.5*OH) )
     mat_inv = mat.inverted()
+    
 
     if deform_intensity != 0.0:
         # Apply random deform to remap grid
 
         # Make transform mat of deform grid
-        deform_mat = (Affine2DMat()   .translated( OW*(0.5+deform_tr_params._tx), OH*(0.5+deform_tr_params._ty) )
+        deform_mat = (Affine2DMat() .translated( OW*(0.5+deform_tr_params._tx), OH*(0.5+deform_tr_params._ty) )
                                     .scaled(deform_tr_params._affine_scale)
                                     .rotated(deform_tr_params._rot_deg)
                                     .translated(-0.5*OW,-0.5*OH) )
 
         # Make random deform diff_grid
-        diff_grid = _gen_rw_coord_uni_diff_grid(OW, OH, deform_cell_count, 0.12, rnd_state)
-
-        # Transform diff_grid to source space using mat*deform_mat
+        diff_grid = _gen_rw_coord_uni_diff_grid(OW, OH, deform_cell_count, rnd_state)
+        diff_grid *= tr_params._affine_scale * deform_intensity 
+        diff_grid *= (OW-1,OH-1)
+        
+        # Transform diff_grid to source space using mat*deform_mat 
         diff_grid = cv2.warpAffine(diff_grid, mat*deform_mat, (W,H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-
-        if deform_intensity < 1.0:
-            # Apply deform_intensity. Decreases amount of coords shift
-            diff_grid *= deform_intensity
 
         # Merge diff_grid with remap_grid
         remap_grid += diff_grid
 
-    # Warp remap_grid target space
+    # Warp remap_grid to target space
     remap_grid = cv2.warpAffine(remap_grid, mat_inv, (OW,OH), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE )
-
-    # Scale remap_grid to image size
-    remap_grid *= (W-1,H-1)
 
     # make binary mask to refine image-boundary
     mask = cv2.warpAffine( np.ones( (H,W), dtype=np.uint8), mat_inv, (OW,OH), flags=cv2.INTER_NEAREST)[...,None]
 
     return remap_grid, mask
 
-def _gen_rw_coord_uni_diff_grid(W, H, cell_count, cell_mod, rnd_state) -> np.ndarray:
+            
+
+def _gen_rw_coord_uni_diff_grid(W, H, cell_count,  rnd_state) -> np.ndarray:
     """
     generates square uniform random deform coordinate differences
 
     grid of shape (H, W, 2)  (x,y)
 
-    cell_count(3)        3+
-
-    cell_mod  (0.12)     [ 0 .. 0.24 ]
+    cell_count        1+
     """
-    cell_count = max(3, cell_count)
-    cell_mod = np.clip(cell_mod, 0, 0.24)
-    cell_size = 1.0 / (cell_count-1)
+    cell_count = max(1, cell_count)
+    
+    cell_var = ( 1.0 / (cell_count+1) ) * 0.4
+    
+    grid = np.zeros( (cell_count+3,cell_count+3, 2), dtype=np.float32 )
 
-    grid = np.zeros( (cell_count,cell_count, 2), dtype=np.float32 )
-
-    grid[1:-1,1:-1, 0:2] += rnd_state.uniform (low=-cell_size*cell_mod, high=cell_size*cell_mod, size=(cell_count-2, cell_count-2, 2) )
-    grid = cv2.resize(grid, (W, H), interpolation=cv2.INTER_CUBIC).astype(np.float32)
-
-    # Linear dump border cells to zero
-    w_border_size = W // cell_count
-    w_dumper = np.linspace(0, 1, w_border_size, dtype=np.float32)
-    grid[:,:w_border_size ,:] *= w_dumper[None,:,None]
-    grid[:,-w_border_size:,:] *= w_dumper[None,::-1,None]
-
-    h_border_size = H // cell_count
-    h_dumper = np.linspace(0, 1, h_border_size, dtype=np.float32)
-    grid[:h_border_size, :,:] *= h_dumper[:,None,None]
-    grid[-h_border_size:,:,:] *= h_dumper[::-1,None,None]
-
+    grid[1:1+cell_count,1:1+cell_count, 0:2] = rnd_state.uniform (low=-cell_var, high=cell_var, size=(cell_count, cell_count, 2) )
+    grid = grid_interp(W, H, grid)
+    
+   
     return grid
 
 
+@nb.njit(nogil=True)
+def grid_interp(W, H, grid : np.ndarray):
+    GH, GW, N = grid.shape
+    
+    xs = float(W-1) / (GW-2)
+    ys = float(H-1) / (GH-2)
+    
+    out = np.zeros( (H,W,N), np.float32)
+    
+    for h in range(H):
+        gy  = float(h) / ys
+        gyi = int(gy)
+        gym = gy-gyi
+        
+        for w in range(W):
+            gx  = float(w) / xs
+            gxi = int(gx)
+            gxm = gx-gxi
+            
+            v00 = grid[gyi,   gxi]                
+            v01 = grid[gyi,   gxi+1]
+            v10 = grid[gyi+1, gxi]
+            v11 = grid[gyi+1, gxi+1]
+            
+            a00 = (1.0-gym) * (1.0-gxm)
+            a01 = (1.0-gym) * gxm      
+            a10 = gym       * (1.0-gxm) 
+            a11 = gym       * gxm      
+            
+            out[h,w] = v00*a00 + v01*a01 + v10*a10 + v11*a11
+    
+    return out    
+    
+    
+     
+    
         # align_uni_mat = align_uni_mat.inverted() if align_uni_mat is not None else Affine2DUniMat()
 
         # align_uni_mat = self._align_uni_mat = (align_uni_mat * Affine2DUniMat()

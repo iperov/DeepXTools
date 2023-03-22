@@ -43,7 +43,12 @@ class WindowsFolderBuilder:
                         python_ver : str):
 
         if release_path.exists():
-            input(f'{release_path} will be removed. Press enter to continue.')
+            for _ in range(3):
+                print(f'WARNING !!! {release_path} will be removed !')
+            
+            input('Press enter to continue.')
+            input('Are you sure? Press enter to continue.')
+            
             shutil.rmtree(release_path)
         while release_path.exists():
             time.sleep(0.1)

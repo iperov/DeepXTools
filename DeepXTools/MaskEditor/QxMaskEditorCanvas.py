@@ -25,9 +25,11 @@ class QxMaskEditorCanvas(qx.QHBox):
 
         if mask is None:
             mask = NPImage(np.zeros((H,W), np.float32))
+            
+        mask = mask.grayscale().resize(W, H)
 
-        self._mask       = mask.grayscale().f32().HWC()
-        self._mask_uint8 = mask.grayscale().u8().HWC()
+        self._mask       = mask.f32().HWC()
+        self._mask_uint8 = mask.u8().HWC()
 
         self._image_pixmap = qt.QPixmap_from_np(image.bgr().HWC())
 

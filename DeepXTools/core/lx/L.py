@@ -305,7 +305,6 @@ _id_to_string_dict = {
         'ru' : 'Маска',
     },
     
-    
     'QxModel.Device' : {
         'en' : 'Device',
         'ru' : 'Устройство',
@@ -505,6 +504,16 @@ _id_to_string_dict = {
     'QxMaskEditor.Save_prev_img':{
         'en' : 'Save + Previous image',
         'ru' : 'Сохранить + Предыдущее изображение',
+    },
+    
+    'QxMaskEditor.Copy_mask':{
+        'en' : 'Copy mask',
+        'ru' : 'Скопировать маску',
+    },
+    
+    'QxMaskEditor.Paste_mask':{
+        'en' : 'Paste mask',
+        'ru' : 'Вставить маску',
     },
     
     'QxMaskEditor.Force_save':{

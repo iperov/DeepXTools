@@ -14,6 +14,7 @@ class QxMaskEditor(qx.QVBox):
         self._root_path = root_path
         self._menu_bar = menu_bar
 
+        self._copied_mask = None
         self._q_mask_editor : QxMaskEditorCanvas = None
         self._q_mask_editor_hash = None
 
@@ -39,7 +40,7 @@ class QxMaskEditor(qx.QVBox):
     def _mx_path_dlg_open(self, path : Path, holder : qx.QVBox, holder_top_bar : qx.QHBox) -> bool:
         holder.dispose_childs()
         holder_top_bar.dispose_childs()
-        
+
         holder_disp = qx.QObject().set_parent(holder)
 
         try:
@@ -60,27 +61,34 @@ class QxMaskEditor(qx.QVBox):
 
 
         tg = ax.TaskGroup().dispose_with(q_tape)
-        prev_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.Key_A), q_tape).inline(lambda shortcut: (
+        prev_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.Key.Key_A), q_tape).inline(lambda shortcut: (
                                 shortcut.mx_press.listen(lambda: self._save_and_next(tg, -1)),
                                 shortcut.mx_release.listen(lambda: tg.cancel_all())))
 
-        next_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.Key_D), q_tape).inline(lambda shortcut: (
+        next_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.Key.Key_D), q_tape).inline(lambda shortcut: (
                                 shortcut.mx_press.listen(lambda: self._save_and_next(tg, 1)),
                                 shortcut.mx_release.listen(lambda: tg.cancel_all())))
 
-        prev_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key_A), q_tape).inline(lambda shortcut: (
+        prev_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_A), q_tape).inline(lambda shortcut: (
                                 shortcut.mx_press.listen(lambda: self._save_and_next_mask(tg, forward=False)),
                                 shortcut.mx_release.listen(lambda: tg.cancel_all())))
 
-        next_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key_D), q_tape).inline(lambda shortcut: (
+        next_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_D), q_tape).inline(lambda shortcut: (
                                 shortcut.mx_press.listen(lambda: self._save_and_next_mask(tg, forward=True)),
                                 shortcut.mx_release.listen(lambda: tg.cancel_all())))
 
-        force_save_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key_S), q_tape).inline(lambda shortcut:
+        force_save_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_S), q_tape).inline(lambda shortcut:
                                 shortcut.mx_press.listen(lambda: self._save(force=True)))
 
-        remove_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key_X), q_tape).inline(lambda shortcut:
+        remove_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_X), q_tape).inline(lambda shortcut:
                                 shortcut.mx_press.listen(lambda: self._delete_mask() ))
+
+        copy_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_C), q_tape).inline(lambda shortcut:
+                                shortcut.mx_press.listen(lambda: self._copy_mask()))
+
+        paste_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_V), q_tape).inline(lambda shortcut:
+                                shortcut.mx_press.listen(lambda: self._paste_mask()))
+
 
         self._menu_bar.add( qx.QMenu().dispose_with_childs(holder)
                                 .set_title('@(QxMaskEditor.Thumbnail_size)')
@@ -126,6 +134,12 @@ class QxMaskEditor(qx.QVBox):
                                         .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_back, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Save_prev_img) (A)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen(lambda: prev_shortcut.press()), btn.mx_released.listen(lambda: prev_shortcut.release()))))
 
+                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.copy, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Copy_mask) (CTRL+S)')
+                                                            .inline(lambda btn: (btn.mx_pressed.listen( lambda: copy_mask_shortcut.press()), btn.mx_released.listen(lambda: copy_mask_shortcut.release()))))
+
+                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.clipboard, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Paste_mask) (CTRL+X)')
+                                                            .inline(lambda btn: (btn.mx_pressed.listen( lambda: paste_mask_shortcut.press()), btn.mx_released.listen(lambda: paste_mask_shortcut.release()))))
+
                                         .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.save, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Force_save) (CTRL+S)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen( lambda: force_save_shortcut.press()), btn.mx_released.listen(lambda: force_save_shortcut.release()))))
 
@@ -139,21 +153,22 @@ class QxMaskEditor(qx.QVBox):
                                                             .inline(lambda btn: (btn.mx_pressed.listen(lambda: next_mask_shortcut.press()), btn.mx_released.listen(lambda: next_mask_shortcut.release()))))
 
                                         ))))
-        
+
         q_tape.set_item_count(image_count := image_ds.image_count)
         q_tape_scrollbar.set_maximum(image_count-1)
 
         q_tape.mx_current_idx.listen(lambda _: rebuild_canvas())
         mx_mask_type.listen(lambda _: (rebuild_canvas(), self._q_tape.update_items()))
 
-        rebuild_canvas = lambda: self._rebuild_canvas(holder_mask_editor)
+        rebuild_canvas = self._rebuild_canvas_f = lambda override_mask=None: self._rebuild_canvas(holder_mask_editor, override_mask=override_mask)
         rebuild_canvas()
 
         return True
 
-    def _rebuild_canvas(self, holder : qx.QVBox):
+    def _rebuild_canvas(self, holder : qx.QVBox, override_mask = None):
         self._save()
         holder.dispose_childs()
+        self._q_mask_editor = None
 
         if (idx := self._q_tape.get_current_idx()) is not None:
             if (mask_type := self._mx_mask_type.get()) is not None:
@@ -165,16 +180,19 @@ class QxMaskEditor(qx.QVBox):
                 try:
                     image = self._image_ds.load_image(idx)
 
-                    if self._image_ds.has_mask(idx, mask_type):
-                        mask = self._image_ds.load_mask(idx, mask_type)
+                    if override_mask is not None:
+                        mask = override_mask
                     else:
-                        mask = None
+                        if self._image_ds.has_mask(idx, mask_type):
+                            mask = self._image_ds.load_mask(idx, mask_type)
+                        else:
+                            mask = None
                 except Exception as e:
                     err = e
 
                 if err is None:
                     self._q_mask_editor      = q_mask_editor = QxMaskEditorCanvas(image, mask=mask)
-                    self._q_mask_editor_hash = q_mask_editor.get_state_hash()
+                    self._q_mask_editor_hash = q_mask_editor.get_state_hash() + (0 if override_mask is None else 1)
 
                     holder.add(q_mask_editor)
                 else:
@@ -183,6 +201,14 @@ class QxMaskEditor(qx.QVBox):
                 holder.add(qx.QLabel().set_align(qx.Align.CenterF).set_text('@(QxMaskEditor.No_mask_selected)'))
         else:
             holder.add(qx.QLabel().set_align(qx.Align.CenterF).set_text('@(QxMaskEditor.No_image_selected)'))
+
+    def _copy_mask(self):
+        if (q_mask_editor := self._q_mask_editor) is not None:
+            self._copied_mask = q_mask_editor.get_mask()
+
+    def _paste_mask(self):
+        if (copied_mask := self._copied_mask) is not None:
+            self._rebuild_canvas_f(override_mask=copied_mask)
 
     def _delete_mask(self):
         if (idx := self._q_tape.get_current_idx()) is not None:

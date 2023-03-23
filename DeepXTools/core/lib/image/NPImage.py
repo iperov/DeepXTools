@@ -13,7 +13,7 @@ from typing import Callable, List, Tuple
 import cv2
 import numba as nb
 import numpy as np
-
+from .LSHash64 import LSHash64
 
 class NPImage:
     """
@@ -441,7 +441,29 @@ class NPImage:
 
         with open(path, "wb") as stream:
             stream.write( buf )
-
+            
+        
+    def get_ls_hash64(self) -> LSHash64:
+        """
+        Calculates perceptual local-sensitive 64-bit hash of image
+        
+        based on http://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
+        
+        returns LSHash64
+        """
+        hash_size, highfreq_factor = 8, 4
+        
+        img = self.grayscale().resize(hash_size * highfreq_factor, hash_size * highfreq_factor).f32().HW()
+        
+        dct = cv2.dct(img)
+        
+        dct_low_freq = dct[:hash_size, :hash_size]
+        bits = ( dct_low_freq > np.median(dct_low_freq) ).reshape( (hash_size*hash_size,)).astype(np.uint64)
+        bits = bits << np.arange(len(bits), dtype=np.uint64)    
+        
+        return LSHash64(bits.sum())
+        
+    
     def __add__(self, value) -> NPImage:
         if isinstance(value, NPImage):
             value = value._img

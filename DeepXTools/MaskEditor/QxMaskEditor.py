@@ -160,12 +160,12 @@ class QxMaskEditor(qx.QVBox):
         q_tape.mx_current_idx.listen(lambda _: rebuild_canvas())
         mx_mask_type.listen(lambda _: (rebuild_canvas(), self._q_tape.update_items()))
 
-        rebuild_canvas = self._rebuild_canvas_f = lambda override_mask=None: self._rebuild_canvas(holder_mask_editor, override_mask=override_mask)
+        rebuild_canvas = self._rebuild_canvas = lambda override_mask=None: self._on_rebuild_canvas(holder_mask_editor, override_mask=override_mask)
         rebuild_canvas()
 
         return True
 
-    def _rebuild_canvas(self, holder : qx.QVBox, override_mask = None):
+    def _on_rebuild_canvas(self, holder : qx.QVBox, override_mask = None):
         self._save()
         holder.dispose_childs()
         self._q_mask_editor = None
@@ -208,7 +208,7 @@ class QxMaskEditor(qx.QVBox):
 
     def _paste_mask(self):
         if (copied_mask := self._copied_mask) is not None:
-            self._rebuild_canvas_f(override_mask=copied_mask)
+            self._rebuild_canvas(override_mask=copied_mask)
 
     def _delete_mask(self):
         if (idx := self._q_tape.get_current_idx()) is not None:

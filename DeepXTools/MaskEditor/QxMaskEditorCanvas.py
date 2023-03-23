@@ -186,6 +186,20 @@ class QxMaskEditorCanvas(qx.QHBox):
 
     def get_state_hash(self) -> int:
         return id(self._fme_undo[-1])
+    
+    def get_view_scale(self) -> float|None:
+        return self._fme.get_view_scale(actual=True)
+    
+    def get_view_look_img_pt(self) -> np.ndarray|None:
+        return self._fme.get_view_look_img_pt(actual=True)
+    
+    def set_view_scale(self, view_scale : float):
+        self._fme_result(self._fme.set_view_scale(view_scale))
+        return self
+    
+    def set_view_look_img_pt(self, view_look_img_pt : np.ndarray):
+        self._fme_result(self._fme.set_view_look_img_pt(view_look_img_pt))
+        return self
 
     def _set_bw_mode(self, bw_mode : bool):
         if self._bw_mode != bw_mode:
@@ -272,7 +286,7 @@ class QxMaskEditorCanvas(qx.QHBox):
 
             yield ax.sleep(0.4 if i == 0 else 0.1)
 
-    def _fme_result(self, new_fme :FMaskEditor):
+    def _fme_result(self, new_fme : FMaskEditor):
         fme, self._fme = self._fme, new_fme
 
         upd = False
@@ -288,7 +302,9 @@ class QxMaskEditorCanvas(qx.QHBox):
 
         if new_fme.is_changed_view_scale(fme) or \
            new_fme.is_activated_center_on_cursor(fme):
-            qt.QCursor.setPos ( self._qfme.map_to_global(qt.QPoint_from_np(new_fme.get_mouse_cli_pt())) )
+            
+            if (mouse_cli_pt := new_fme.get_mouse_cli_pt(actual=True)) is not None:
+                qt.QCursor.setPos ( self._qfme.map_to_global(qt.QPoint_from_np(mouse_cli_pt)) )
 
         if new_fme.is_changed_state(fme) or \
            new_fme.is_changed_drag_type(fme):

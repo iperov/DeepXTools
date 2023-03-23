@@ -38,7 +38,7 @@ class FMaskEditor:
 
         self._cli_size : np.ndarray     = other._cli_size if other is not None else np.array([320,240], np.int32)
         self._img_size : np.ndarray     = other._img_size if other is not None else np.array([320,240], np.int32)
-        self._mouse_cli_pt : np.ndarray = other._mouse_cli_pt if other is not None else np.array([0,0], np.int32)
+        self._mouse_cli_pt : np.ndarray = other._mouse_cli_pt if other is not None else np.array([-9999,-9999], np.int32)
 
         self._view_look_img_pt : np.ndarray = other._view_look_img_pt if other is not None else None
         self._view_scale : float            = other._view_scale if other is not None else None
@@ -78,7 +78,14 @@ class FMaskEditor:
         return model
 
     def is_changed_mouse_cli_pt(self, other : FMaskEditor): return (self._mouse_cli_pt != other._mouse_cli_pt).any()
-    def get_mouse_cli_pt(self) -> np.ndarray: return self._mouse_cli_pt
+    def get_mouse_cli_pt(self, actual=False) -> np.ndarray|None:
+        """
+        if actual -> returns None if not set
+        """
+        if actual and (self._mouse_cli_pt == [-9999,-9999]).all():
+            return None
+        return self._mouse_cli_pt
+
     def set_mouse_cli_pt(self, mouse_cli_pt : np.ndarray) -> FMaskEditor:
         if (mouse_cli_pt == self._mouse_cli_pt).all():
             return self
@@ -101,16 +108,23 @@ class FMaskEditor:
         return model
 
     def is_changed_view_look_img_pt(self, other : FMaskEditor): return (self.get_view_look_img_pt() != other.get_view_look_img_pt()).any()
-    def get_view_look_img_pt(self) -> np.ndarray:
-        return self._view_look_img_pt if self._view_look_img_pt is not None else self.get_img_size() / 2
+    def get_view_look_img_pt(self, actual=False) -> np.ndarray|None:
+        """
+        if actual -> returns None if not set
+        """
+        return self._view_look_img_pt if actual or self._view_look_img_pt is not None else self.get_img_size() / 2
     def set_view_look_img_pt(self, view_look_img_pt : np.ndarray) -> FMaskEditor:
         model = FMaskEditor(self)
         model._view_look_img_pt = view_look_img_pt
         return model
 
     def is_changed_view_scale(self, other : FMaskEditor): return (self._view_scale or 0.0) != (other._view_scale or 0.0)
-    def get_view_scale(self) -> float:
-        return self._view_scale if self._view_scale is not None else (self._cli_size.min() / self._img_size.max())
+    def get_view_scale(self, actual=False) -> float|None:
+        """
+        if actual -> returns None if not set
+        """
+        return self._view_scale if actual or self._view_scale is not None else (self._cli_size.min() / self._img_size.max())
+
     def set_view_scale(self, view_scale : float) -> FMaskEditor:
         model = FMaskEditor(self)
         model._view_scale = np.clip(view_scale, min(1.0, (self._cli_size.min() / self._img_size.max())), 20.0)

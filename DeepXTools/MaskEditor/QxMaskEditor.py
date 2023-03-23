@@ -46,13 +46,16 @@ class QxMaskEditor(qx.QVBox):
         self._q_tape_scrollbar : qx.QScrollBar = None
         self._q_tape_scrollbar_value_conn : mx.EventConnection = None
         self._q_sort_progress_bar : qx.QProgressBar = None
-        self._q_holder_mask_editor : qx.QVBox = None
+        self._q_holder_me : qx.QVBox = None
+        self._q_keep_view : qx.QCheckBox = None
         self._f_rebuild_canvas : Callable = None
 
         # L2
         self._L2_initialized = False
-        self._q_mask_editor : QxMaskEditorCanvas = None
-        self._q_mask_editor_hash : int = None
+        self._q_me_canvas : QxMaskEditorCanvas = None
+        self._q_me_canvas_hash : int = None
+        self._q_me_view_scale : float|None = None
+        self._q_me_view_look_img_pt : np.ndarray|None = None
 
         #
         (self   .add(qx.QHBox()
@@ -101,7 +104,8 @@ class QxMaskEditor(qx.QVBox):
         self._q_tape_scrollbar = q_tape_scrollbar = qx.QScrollBar().set_minimum(0)
         self._q_tape_scrollbar_value_conn = q_tape_scrollbar.mx_value.listen(lambda idx: self._save_and_goto(idx) )
         self._q_sort_progress_bar = qx.QProgressBar()
-        self._q_holder_mask_editor = qx.QVBox()
+        self._q_holder_me = qx.QVBox()
+        self._q_keep_view = qx.QCheckBox().set_text('@(QxMaskEditor.Keep_view)')
 
         prev_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.Key.Key_A), q_tape).inline(lambda shortcut: (
                                 shortcut.mx_press.listen(lambda: self._save_and_next(-1)),
@@ -118,9 +122,6 @@ class QxMaskEditor(qx.QVBox):
         next_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_D), q_tape).inline(lambda shortcut: (
                                 shortcut.mx_press.listen(lambda: self._save_and_next_mask(forward=True)),
                                 shortcut.mx_release.listen(lambda: self._tape_tg.cancel_all())))
-
-        sort_perc_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_P), q_tape).inline(lambda shortcut:
-                                shortcut.mx_press.listen(lambda: self._sort()))
 
         force_save_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_S), q_tape).inline(lambda shortcut:
                                 shortcut.mx_press.listen(lambda: self._save(force=True)))
@@ -168,7 +169,7 @@ class QxMaskEditor(qx.QVBox):
 
         (self._q_holder.add(qx.QSplitter().set_orientation(qx.Orientation.Vertical).set_default_sizes([9999,1])
                         .add(qx.QVBox()
-                                .add(self._q_holder_mask_editor))
+                                .add(self._q_holder_me))
                         .add(qx.QVBox()
                                 .add(q_tape)
                                 .add(q_tape_scrollbar.v_compact())
@@ -180,12 +181,13 @@ class QxMaskEditor(qx.QVBox):
 
                                             .add(qx.QLabel().set_text('@(QxMaskEditor.Sort_by)'))
 
-                                                .add((q_sort_by := qx.QComboBox())
-                                                    .inline(lambda c: [
-                                                        c.add_item({ QxMaskEditor._SortBy.Name : '@(QxMaskEditor._SortBy.Name)',
-                                                                    QxMaskEditor._SortBy.PerceptualDissimilarity : '@(QxMaskEditor._SortBy.PerceptualDissimilarity)',
-                                                                    }[x], data=x) for x in QxMaskEditor._SortBy])
-                                                ))
+                                            .add((q_sort_by := qx.QComboBox())
+                                                .inline(lambda c: [
+                                                    c.add_item({ QxMaskEditor._SortBy.Name : '@(QxMaskEditor._SortBy.Name)',
+                                                                 QxMaskEditor._SortBy.PerceptualDissimilarity : '@(QxMaskEditor._SortBy.PerceptualDissimilarity)',
+                                                                }[x], data=x) for x in QxMaskEditor._SortBy]))
+                                            .add_spacer(4)
+                                            .add(self._q_keep_view))
 
                                         .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_skip_back, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Save_prev_img_mask) (CTRL+A)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen(lambda: prev_mask_shortcut.press()), btn.mx_released.listen(lambda: prev_mask_shortcut.release()))))
@@ -229,7 +231,7 @@ class QxMaskEditor(qx.QVBox):
     def _rebuild_canvas(self,  override_mask = None):
         # L1
         self._save()
-        holder = self._q_holder_mask_editor.dispose_childs()
+        holder = self._q_holder_me.dispose_childs()
         L2_disp = qx.QObject().set_parent(holder).call_on_dispose(lambda: setattr(self, '_L2_initialized', False))
 
         if (idx := self._q_tape.get_current_idx()) is not None:
@@ -256,11 +258,20 @@ class QxMaskEditor(qx.QVBox):
 
                 if err is None:
                     # + L2
-                    self._q_mask_editor      = q_mask_editor = QxMaskEditorCanvas(image, mask=mask)
-                    self._q_mask_editor_hash = q_mask_editor.get_state_hash() + (0 if override_mask is None else 1)
+
+                    self._q_me_canvas      = q_me_canvas = QxMaskEditorCanvas(image, mask=mask)
+                    self._q_me_canvas_hash = q_me_canvas.get_state_hash() + (0 if override_mask is None else 1)
+
+                    if self._q_keep_view.is_checked():
+                        if (view_scale := self._q_me_view_scale) is not None:
+                            q_me_canvas.set_view_scale(view_scale)
+
+                        if (view_look_img_pt := self._q_me_view_look_img_pt) is not None:
+                            q_me_canvas.set_view_look_img_pt(view_look_img_pt)
+
                     self._L2_initialized = True
 
-                    holder.add(q_mask_editor)
+                    holder.add(q_me_canvas)
                 else:
                     holder.add(qx.QLabel().set_font(qx.Font.FixedWidth).set_align(qx.Align.CenterF).set_text(f'@(Error) {err}'))
             else:
@@ -312,7 +323,7 @@ class QxMaskEditor(qx.QVBox):
     def _copy_mask(self):
         # L1
         if self._L2_initialized:
-            self._copied_mask = self._q_mask_editor.get_mask()
+            self._copied_mask = self._q_me_canvas.get_mask()
 
     def _paste_mask(self):
         # L1
@@ -334,18 +345,24 @@ class QxMaskEditor(qx.QVBox):
         """returns True if success"""
         # L1
         if self._L2_initialized:
+            q_me_canvas = self._q_me_canvas
+            self._q_me_view_scale = q_me_canvas.get_view_scale()
+            self._q_me_view_look_img_pt = q_me_canvas.get_view_look_img_pt()
+
             if (idx := self._q_tape.get_current_idx()) is not None:
                 if (mask_type := self._mx_mask_type.get()) is not None:
 
-                    if self._q_mask_editor_hash != (state_hash := self._q_mask_editor.get_state_hash()) or force:
+
+                    if self._q_me_canvas_hash != (state_hash := q_me_canvas.get_state_hash()) or force:
                         # Save if something changed or force
                         try:
-                            self._image_ds.save_mask(self._f_idx_to_ds_idx(idx), mask_type, self._q_mask_editor.get_mask())
+                            self._image_ds.save_mask(self._f_idx_to_ds_idx(idx), mask_type, q_me_canvas.get_mask())
                         except Exception as e:
                             self._popup_error(str(e))
                             return False
 
-                        self._q_mask_editor_hash = state_hash
+                        self._q_me_canvas_hash = state_hash
+
                         self._q_tape.update_item(idx)
         return True
 

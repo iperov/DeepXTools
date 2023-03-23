@@ -496,6 +496,21 @@ _id_to_string_dict = {
         'ru' : 'Имя маски',
     },
     
+    'QxMaskEditor.Sort_by':{
+        'en' : 'Sort by',
+        'ru' : 'Сортировать по',
+    },
+    
+    'QxMaskEditor._SortBy.Name':{
+        'en' : 'Name',
+        'ru' : 'Имя',
+    },
+    
+    'QxMaskEditor._SortBy.PerceptualDissimilarity':{
+        'en' : 'Perceptual Dissimilarity',
+        'ru' : 'Зрительной непохожести',
+    },
+    
     'QxMaskEditor.Save_prev_img_mask':{
         'en' : 'Save + Previous image with mask',
         'ru' : 'Сохранить + Предыдущее изображение с маской',

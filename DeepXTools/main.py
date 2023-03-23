@@ -1,15 +1,7 @@
 import argparse
 from pathlib import Path
+
 from core.lib import argparse as lib_argparse
-
-
-# from core.lib import torch as lib_torch
-
-# print( lib_torch.get_avail_gpu_devices() )
-
-# import torch
-# import code
-# code.interact(local=dict(globals(), **locals()))
 
 
 def main():
@@ -32,15 +24,11 @@ def main():
     def deep_roto_run(args):
         from DeepRoto import MxDeepRoto, QxDeepRotoApp
         deep_roto = MxDeepRoto(workspace_path=Path(args.workspace_dir))
-        
+
         app = QxDeepRotoApp(deep_roto=deep_roto, settings_path=Path(args.workspace_dir) / 'DeepRoto.ui')
         app.exec()
         app.dispose()
 
-        # app = QxDeepRotoApp(deep_roto=deep_roto, settings_path=Path(args.workspace_dir) / 'DeepRoto.ui')
-        # app.exec()
-        # app.dispose()
-        
         deep_roto.dispose()
 
     deep_roto_parser.set_defaults(func=deep_roto_run)

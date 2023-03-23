@@ -13,14 +13,14 @@ from .ImageDSInfo import ImageDSInfo
 class ImageDS:
     """
     a class to read/write images and masks from directories
-    
+
     example
-    
+
     \\foodir
-    
+
     \\foodir_mask1
-    
-    \\foodir_mask2    
+
+    \\foodir_mask2
     """
 
     @staticmethod
@@ -126,21 +126,6 @@ class ImageDS:
 
         return self.get_mask_path(id, mask_type).exists()
 
-
-    def get_next_image_id_with_mask(self, id : int, mask_type : str, forward : bool = True) -> int|None:
-        """raises on error"""
-        self._assert_id(id)
-        self._assert_mask_type(mask_type)
-
-        mask_dir_path = self.get_mask_dir_path(mask_type)
-
-        for i in (range(id+1, len(self._images_paths)) if forward else \
-                    range(id-1, -1, -1)):
-            if (mask_dir_path / f'{self._images_paths[i].stem}.png').exists():
-                return i
-
-        return None
-
     def _assert_id(self, id : int):
         if id < 0 or id >= len(self._images_paths):
             raise ValueError('id must be in range [0..image_count-1]')
@@ -152,3 +137,19 @@ class ImageDS:
 
     def __repr__(self): return self.__str__()
     def __str__(self): return f"{super().__str__()}[ImageDS]"
+
+
+   # #deprecated
+    # def get_next_image_id_with_mask(self, id : int, mask_type : str, forward : bool = True) -> int|None:
+    #     """raises on error"""
+    #     self._assert_id(id)
+    #     self._assert_mask_type(mask_type)
+
+    #     mask_dir_path = self.get_mask_dir_path(mask_type)
+
+    #     for i in (range(id+1, len(self._images_paths)) if forward else \
+    #                 range(id-1, -1, -1)):
+    #         if (mask_dir_path / f'{self._images_paths[i].stem}.png').exists():
+    #             return i
+
+    #     return None

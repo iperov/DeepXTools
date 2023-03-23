@@ -27,7 +27,7 @@ class QxDataGenerator(qx.QVBox):
                                     .next_row()
                                     .add(qx.QLabel().set_text('@(Mode)'), align=qx.Align.RightF)
                                     .add(qx.QComboBoxMxSingleChoice(data_gen.mx_mode,
-                                                            stringifier=lambda val: {MxDataGenerator.Mode.CenterFit : '@(QxDataGenerator.Mode.CenterFit)',
+                                                            stringifier=lambda val: {MxDataGenerator.Mode.Fit   : '@(QxDataGenerator.Mode.Fit)',
                                                                                      MxDataGenerator.Mode.Patch : '@(QxDataGenerator.Mode.Patch)'}[val]))
                                     .grid())
 
@@ -95,16 +95,16 @@ class QxDataGenerator(qx.QVBox):
 
         row = grid.row(0)
         row.add(None)
-        if mode == MxDataGenerator.Mode.CenterFit:
+        if mode == MxDataGenerator.Mode.Fit:
             row.add(qx.QLabel().set_align(qx.Align.CenterF).set_text('@(QxDataGenerator.Offset)'), align=qx.Align.BottomF)
         row.add(qx.QLabel().set_align(qx.Align.CenterF).set_text('@(QxDataGenerator.Random)'), align=qx.Align.BottomF)
 
-        if mode == MxDataGenerator.Mode.CenterFit:
+        if mode == MxDataGenerator.Mode.Fit:
             row = row.next_row()
             (row    .add(qx.QLabel().set_text('@(QxDataGenerator.Translation_X)'), align=qx.Align.RightF)
                     .add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_offset_tx) )
                     .add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_rnd_tx_var) ))
-        if mode == MxDataGenerator.Mode.CenterFit:
+        if mode == MxDataGenerator.Mode.Fit:
             row = row.next_row()
             (row    .add(qx.QLabel().set_text('@(QxDataGenerator.Translation_Y)'), align=qx.Align.RightF)
                     .add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_offset_ty))
@@ -112,13 +112,13 @@ class QxDataGenerator(qx.QVBox):
 
         row = row.next_row()
         row.add(qx.QLabel().set_text('@(QxDataGenerator.Scale)'), align=qx.Align.RightF)
-        if mode == MxDataGenerator.Mode.CenterFit:
+        if mode == MxDataGenerator.Mode.Fit:
             row.add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_offset_scale))
         row.add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_rnd_scale_var))
 
         row = row.next_row()
         row.add(qx.QLabel().set_text('@(QxDataGenerator.Rotation)'), align=qx.Align.RightF)
-        if mode == MxDataGenerator.Mode.CenterFit:
+        if mode == MxDataGenerator.Mode.Fit:
             row.add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_offset_rot_deg))
         row.add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_rnd_rot_deg_var))
 

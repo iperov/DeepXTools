@@ -20,7 +20,7 @@ from core.lib.python import shuffled
 class MxDataGenerator(mx.Disposable):
 
     class Mode(Enum):
-        CenterFit = auto()
+        Fit = auto()
         Patch = auto()
 
     # class OutputType(Enum):
@@ -61,7 +61,7 @@ class MxDataGenerator(mx.Disposable):
         self._mx_error = mx.TextEmitter().dispose_with(self)
         self._mx_image_ds_ref_list = MxImageDSRefList(state=state.get('image_ds_ref_list', None)).dispose_with(self)
 
-        self._mx_mode = mx.SingleChoice[MxDataGenerator.Mode](MxDataGenerator.Mode(state.get('mode', MxDataGenerator.Mode.CenterFit.value)), avail=lambda: [*MxDataGenerator.Mode]).dispose_with(self)
+        self._mx_mode = mx.SingleChoice[MxDataGenerator.Mode](MxDataGenerator.Mode(state.get('mode', MxDataGenerator.Mode.Fit.value)), avail=lambda: [*MxDataGenerator.Mode]).dispose_with(self)
 
         #self._mx_output_type = mx.SingleChoice[MxDataGenerator.OutputType](MxDataGenerator.OutputType(state.get('output_type', MxDataGenerator.OutputType.Image_n_Mask.value)), avail=lambda: [*MxDataGenerator.OutputType]).dispose_with(self)
 
@@ -105,27 +105,27 @@ class MxDataGenerator(mx.Disposable):
     #     return self._mx_output_type
     @property
     def mx_offset_tx(self) -> mx.INumber:
-        """Avail when mx_mode == CenterFit"""
+        """Avail when mx_mode == Fit"""
         return self._mx_offset_tx
     @property
     def mx_offset_ty(self) -> mx.INumber:
-        """Avail when mx_mode == CenterFit"""
+        """Avail when mx_mode == Fit"""
         return self._mx_offset_ty
     @property
     def mx_offset_scale(self) -> mx.INumber:
-        """Avail when mx_mode == CenterFit"""
+        """Avail when mx_mode == Fit"""
         return self._mx_offset_scale
     @property
     def mx_offset_rot_deg(self) -> mx.INumber:
-        """Avail when mx_mode == CenterFit"""
+        """Avail when mx_mode == Fit"""
         return self._mx_offset_rot_deg
     @property
     def mx_rnd_tx_var(self) -> mx.INumber:
-        """Avail when mx_mode == CenterFit"""
+        """Avail when mx_mode == Fit"""
         return self._mx_rnd_tx_var
     @property
     def mx_rnd_ty_var(self) -> mx.INumber:
-        """Avail when mx_mode == CenterFit"""
+        """Avail when mx_mode == Fit"""
         return self._mx_rnd_ty_var
     @property
     def mx_rnd_scale_var(self) -> mx.INumber:
@@ -348,7 +348,7 @@ class MxDataGenerator(mx.Disposable):
             img = img.grayscale() if grayscale else img.bgr()
             mask = mask.grayscale()
 
-            if mode == MxDataGenerator.Mode.CenterFit:
+            if mode == MxDataGenerator.Mode.Fit:
                 offset_transform_params = lib_aug.TransformParams(  tx=offset_tx,
                                                                     ty=offset_ty,
                                                                     scale=offset_scale,
@@ -368,8 +368,8 @@ class MxDataGenerator(mx.Disposable):
                                                     rot_deg=nprnd.uniform(-rnd_rot_deg_var, rnd_rot_deg_var))
             geo_aug = lib_aug.Geo(offset_transform_params=offset_transform_params, transform_params=transform_params)
 
-            img  = geo_aug.transform(img, W, H, center_fit=mode == MxDataGenerator.Mode.CenterFit, transform_intensity=transform_intensity, deform_intensity=image_deform_intensity, )
-            mask = geo_aug.transform(mask, W, H, center_fit=mode == MxDataGenerator.Mode.CenterFit, transform_intensity=transform_intensity, deform_intensity=mask_deform_intensity, )
+            img  = geo_aug.transform(img, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=image_deform_intensity, )
+            mask = geo_aug.transform(mask, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=mask_deform_intensity, )
 
             if rnd_flip and nprnd.randint(2) == 0:
                 img = img.h_flip()

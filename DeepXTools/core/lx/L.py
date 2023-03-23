@@ -200,9 +200,9 @@ _id_to_string_dict = {
         'ru' : 'Перезагрузить',
     },
     
-    'QxDataGenerator.Mode.CenterFit' : {
-        'en' : 'Center fit',
-        'ru' : 'Заполнить по центру',
+    'QxDataGenerator.Mode.Fit' : {
+        'en' : 'Fit',
+        'ru' : 'Вместить',
     },
     
     'QxDataGenerator.Mode.Patch' : {

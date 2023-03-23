@@ -1,3 +1,5 @@
+from typing import Any
+
 from .. import lx, mx, qt
 from ._helpers import q_init
 from .QApplication import QApplication
@@ -23,11 +25,25 @@ class QComboBox(QWidget):
 
     def get_q_combobox(self) -> qt.QComboBox: return self.get_q_widget()
 
-    def get_placeholder_text(self) -> str: return self.get_q_combobox().placeholderText()
-
     def get_current_index(self) -> int|None:
         idx = self.get_q_combobox().currentIndex()
         return None if idx == -1 else idx
+
+    def get_placeholder_text(self) -> str: return self.get_q_combobox().placeholderText()
+    def get_item_data(self, idx : int) -> Any: return self.get_q_combobox().itemData(idx)
+
+    def add_item(self, text : str, data : Any = None):
+        self.get_q_combobox().addItem(text, data)
+        idx = self.get_q_combobox().count()-1
+
+        attr_name = f'_QComboBox_item_{idx}_text_disp'
+        if (disp := getattr(self, attr_name, None)) is not None:
+            disp.dispose()
+
+        setattr(self, attr_name,
+                QApplication.instance().mx_language.reflect(lambda lang: self.get_q_combobox().setItemText(idx, lx.L(text, lang))).dispose_with(self)
+                )
+        return self
 
     def set_current_index(self, idx : int|None):
         self.get_q_combobox().setCurrentIndex(-1 if idx is None else idx)
@@ -39,21 +55,6 @@ class QComboBox(QWidget):
 
     def clear(self):
         self.get_q_combobox().clear()
-        return self
-
-    def add_item(self, text : str):
-        self.get_q_combobox().addItem(text)
-        idx = self.get_q_combobox().count()-1
-
-        attr_name = f'_QComboBox_item_{idx}_text_disp'
-        if (disp := getattr(self, attr_name, None)) is not None:
-            disp.dispose()
-
-        setattr(self, attr_name,
-                QApplication.instance().mx_language.reflect(lambda lang: self.get_q_combobox().setItemText(idx, lx.L(text, lang))).dispose_with(self)
-                )
-
-
         return self
 
     def show_popup(self):

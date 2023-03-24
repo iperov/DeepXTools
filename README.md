@@ -10,6 +10,9 @@ Various deep learning tools.
 
 Main page <a href="https://iperov.github.io/DeepXTools/">https://iperov.github.io/DeepXTools/</a>
 
+# Repository info
+
+Pull requests are currently not accepted.
 
 </td></tr>
 </table>

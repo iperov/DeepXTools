@@ -13,6 +13,8 @@ _C_to_Format = {
         4: QImage.Format.Format_ARGB32
     }
 
+_Format_to_C = { v : k for k,v in _C_to_Format.items() }
+
 def wrap(q_object : T, func_name, wrapper : Callable[ [T, Callable], Any ]) -> Callable:
     """
     wrapper(q_object, super, *args, **kwargs)
@@ -29,6 +31,17 @@ def wrap(q_object : T, func_name, wrapper : Callable[ [T, Callable], Any ]) -> C
 
 def unwrap(q_object, func_name, super):
     setattr(q_object, func_name, super)
+
+def QImage_to_np(img : QImage, fmt : QImage.Format, copy=True) -> np.ndarray:
+    C = _Format_to_C.get(fmt, None)
+    if C is None:
+        raise ValueError(f'Unsupported format {fmt}. Avail: {_Format_to_C.keys()}')
+
+    img = img.convertToFormat(fmt)
+    arr = np.frombuffer(img.constBits(), np.uint8).reshape(img.height(), img.width(), C)
+    if copy:
+        arr = arr.copy()
+    return arr
 
 def QImage_from_np(img : np.ndarray) -> QImage:
     """
@@ -59,8 +72,8 @@ def QImage_from_np(img : np.ndarray) -> QImage:
 
     q_image = QImage(img, W, H, W*C, format)
     q_image._np_img = img # save in order not to be garbage collected
-        
-    
+
+
     return q_image
 
 def QImage_colorized(image : QImage, color : QColor ) -> QImage:

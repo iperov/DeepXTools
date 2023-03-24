@@ -19,6 +19,7 @@ from .QBox import QBox, QHBox, QVBox
 from .QCheckBox import QCheckBox
 from .QCheckBoxMxFlag import QCheckBoxMxFlag
 from .QCheckBoxMxMultiChoice import QCheckBoxMxMultiChoice
+from .QClipboard import QClipboard
 from .QCollapsibleVBox import QCollapsibleVBox
 from .QComboBox import QComboBox
 from .QComboBoxMxSingleChoice import QComboBoxMxSingleChoice

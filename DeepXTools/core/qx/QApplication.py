@@ -6,6 +6,7 @@ from pathlib import Path
 from .. import ax, mx, qt
 from ..lib import os as lib_os
 from ._constants import ProcessPriority
+from .QClipboard import QClipboard
 from .QDarkFusionStyle import QDarkFusionStyle
 from .QEvent import QEvent2
 from .QFontDB import QFontDB
@@ -36,6 +37,8 @@ class QApplication(QObject):
         self.__q_app = q_app
 
         super().__init__(q_object=q_app)
+        
+        self.__q_clipboard = QClipboard(q_clipboard=q_app.clipboard(), wrap_mode=True).dispose_with(self)
 
         self.__save_tg = ax.TaskGroup().dispose_with(self)
 
@@ -95,6 +98,8 @@ class QApplication(QObject):
 
     def quit(self):
         self.__q_app.quit()
+        
+    def get_clipboard(self) -> QClipboard: return self.__q_clipboard 
 
     def get_settings(self, key) -> QSettings:
         """get lifetime mutable settings dict of specified key. Settings are saved/loaded."""

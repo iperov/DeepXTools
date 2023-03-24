@@ -41,7 +41,6 @@ class QxMaskEditor(qx.QVBox):
 
         self._mx_mask_type : mx.SingleChoice[str|None] = None
 
-        self._copied_mask : NPImage|None = None
         self._q_tape : qx.QTapeCachedItemView = None
         self._q_tape_scrollbar : qx.QScrollBar = None
         self._q_tape_scrollbar_value_conn : mx.EventConnection = None
@@ -126,8 +125,11 @@ class QxMaskEditor(qx.QVBox):
         force_save_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_S), q_tape).inline(lambda shortcut:
                                 shortcut.mx_press.listen(lambda: self._save(force=True)))
 
-        remove_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_X), q_tape).inline(lambda shortcut:
+        delete_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_X), q_tape).inline(lambda shortcut:
                                 shortcut.mx_press.listen(lambda: self._delete_mask() ))
+
+        copy_image_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier|qt.Qt.KeyboardModifier.ShiftModifier, qt.Qt.Key.Key_C), q_tape).inline(lambda shortcut:
+                                shortcut.mx_press.listen(lambda: self._copy_image()))
 
         copy_mask_shortcut = qx.QShortcut(qt.QKeyCombination(qt.Qt.KeyboardModifier.ControlModifier, qt.Qt.Key.Key_C), q_tape).inline(lambda shortcut:
                                 shortcut.mx_press.listen(lambda: self._copy_mask()))
@@ -166,6 +168,7 @@ class QxMaskEditor(qx.QVBox):
                                                                                                             holder_new_mask.hide()))))
                                                 .add(qx.QPushButton().h_compact().set_text('@(Cancel)')
                                                         .inline(lambda btn: btn.mx_clicked.listen(lambda: (btn_new_mask.show(), holder_new_mask.hide())))))))
+        icon_size = qx.Size.L
 
         (self._q_holder.add(qx.QSplitter().set_orientation(qx.Orientation.Vertical).set_default_sizes([9999,1])
                         .add(qx.QVBox()
@@ -176,8 +179,9 @@ class QxMaskEditor(qx.QVBox):
                                 .add(self._q_sort_progress_bar.hide())
 
 
+
                                 .add(qx.QHBox().v_compact()
-                                        .add(qx.QHBox().h_compact()
+                                        .add(qx.QHBox().v_compact()
 
                                             .add(qx.QLabel().set_text('@(QxMaskEditor.Sort_by)'))
 
@@ -187,30 +191,37 @@ class QxMaskEditor(qx.QVBox):
                                                                  QxMaskEditor._SortBy.PerceptualDissimilarity : '@(QxMaskEditor._SortBy.PerceptualDissimilarity)',
                                                                 }[x], data=x) for x in QxMaskEditor._SortBy]))
                                             .add_spacer(4)
-                                            .add(self._q_keep_view))
+                                            .add(self._q_keep_view), align=qx.Align.CenterH)
 
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_skip_back, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Save_prev_img_mask) (CTRL+A)')
-                                                            .inline(lambda btn: (btn.mx_pressed.listen(lambda: prev_mask_shortcut.press()), btn.mx_released.listen(lambda: prev_mask_shortcut.release()))))
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_back, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Save_prev_img) (A)')
-                                                            .inline(lambda btn: (btn.mx_pressed.listen(lambda: prev_shortcut.press()), btn.mx_released.listen(lambda: prev_shortcut.release()))))
+                                        .add_spacer(16)
 
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.copy, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Copy_mask) (CTRL+S)')
+                                        .add(qx.QPushButton().set_icon(qt.QIcon(str(Path(__file__).parent / 'assets' / 'icons' / 'copy_image.png'))).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Copy_image) (CTRL+SHIFT+С)')
+                                                            .inline(lambda btn: (btn.mx_pressed.listen( lambda: copy_image_shortcut.press()), btn.mx_released.listen(lambda: copy_image_shortcut.release()))))
+
+                                        .add(qx.QPushButton().set_icon(qt.QIcon(str(Path(__file__).parent / 'assets' / 'icons' / 'copy_mask.png'))).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Copy_mask) (CTRL+С)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen( lambda: copy_mask_shortcut.press()), btn.mx_released.listen(lambda: copy_mask_shortcut.release()))))
 
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.clipboard, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Paste_mask) (CTRL+X)')
+                                        .add(qx.QPushButton().set_icon(qt.QIcon(str(Path(__file__).parent / 'assets' / 'icons' / 'paste_mask.png'))).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Paste_mask) (CTRL+X)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen( lambda: paste_mask_shortcut.press()), btn.mx_released.listen(lambda: paste_mask_shortcut.release()))))
 
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.save, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Force_save) (CTRL+S)')
+                                        .add(qx.QPushButton().set_icon(qt.QIcon(str(Path(__file__).parent / 'assets' / 'icons' / 'save_mask.png'))).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Force_save_mask) (CTRL+S)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen( lambda: force_save_shortcut.press()), btn.mx_released.listen(lambda: force_save_shortcut.release()))))
 
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.trash, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Delete_mask) (CTRL+X)')
-                                                            .inline(lambda btn: (btn.mx_pressed.listen( lambda: remove_mask_shortcut.press()), btn.mx_released.listen(lambda: remove_mask_shortcut.release()))))
+                                        .add(qx.QPushButton().set_icon(qt.QIcon(str(Path(__file__).parent / 'assets' / 'icons' / 'delete_mask.png'))).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Delete_mask) (CTRL+X)')
+                                                            .inline(lambda btn: (btn.mx_pressed.listen( lambda: delete_mask_shortcut.press()), btn.mx_released.listen(lambda: delete_mask_shortcut.release()))))
 
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_forward, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Save_next_img) (D)')
+                                        .add_spacer(16)
+
+                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_skip_back, qx.StyleColor.ButtonText)).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Save_prev_img_mask) (CTRL+A)')
+                                                            .inline(lambda btn: (btn.mx_pressed.listen(lambda: prev_mask_shortcut.press()), btn.mx_released.listen(lambda: prev_mask_shortcut.release()))))
+                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_back, qx.StyleColor.ButtonText)).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Save_prev_img) (A)')
+                                                            .inline(lambda btn: (btn.mx_pressed.listen(lambda: prev_shortcut.press()), btn.mx_released.listen(lambda: prev_shortcut.release()))))
+                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_forward, qx.StyleColor.ButtonText)).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Save_next_img) (D)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen(lambda: next_shortcut.press()), btn.mx_released.listen(lambda: next_shortcut.release()))))
 
-                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_skip_forward, qx.StyleColor.ButtonText)).set_tooltip('@(QxMaskEditor.Save_next_img_with_mask) (CTRL+D)')
+                                        .add(qx.QPushButton().set_icon(qx.QIonIconDB.instance().icon(qx.IonIcon.play_skip_forward, qx.StyleColor.ButtonText)).set_icon_size(icon_size).set_tooltip('@(QxMaskEditor.Save_next_img_with_mask) (CTRL+D)')
                                                             .inline(lambda btn: (btn.mx_pressed.listen(lambda: next_mask_shortcut.press()), btn.mx_released.listen(lambda: next_mask_shortcut.release()))))
+
 
                                         ))))
 
@@ -228,7 +239,7 @@ class QxMaskEditor(qx.QVBox):
 
         return True
 
-    def _rebuild_canvas(self,  override_mask = None):
+    def _rebuild_canvas(self, override_mask : NPImage = None):
         # L1
         self._save()
         holder = self._q_holder_me.dispose_childs()
@@ -320,15 +331,21 @@ class QxMaskEditor(qx.QVBox):
         self._q_tape.update_items()
         self._f_rebuild_canvas()
 
+    def _copy_image(self):
+        # L1
+        if self._L2_initialized:
+            qx.QApplication.instance().get_clipboard().set_image( qt.QImage_from_np(self._q_me_canvas.get_image().bgr().HWC()) )
+
     def _copy_mask(self):
         # L1
         if self._L2_initialized:
-            self._copied_mask = self._q_me_canvas.get_mask()
+            qx.QApplication.instance().get_clipboard().set_image( qt.QImage_from_np(self._q_me_canvas.get_mask().grayscale().HWC()) )
 
     def _paste_mask(self):
         # L1
-        if (copied_mask := self._copied_mask) is not None:
-            self._f_rebuild_canvas(override_mask=copied_mask)
+        if (image := qx.QApplication.instance().get_clipboard().get_image()) is not None:
+            image = NPImage(qt.QImage_to_np(image, qt.QImage.Format.Format_Grayscale8 ))
+            self._f_rebuild_canvas(override_mask=image)
 
     def _delete_mask(self):
         # L1

@@ -526,6 +526,11 @@ _id_to_string_dict = {
         'ru' : 'Сохранить + Предыдущее изображение',
     },
 
+    'QxMaskEditor.Copy_image':{
+        'en' : 'Copy image',
+        'ru' : 'Скопировать маску',
+    },
+
     'QxMaskEditor.Copy_mask':{
         'en' : 'Copy mask',
         'ru' : 'Скопировать маску',
@@ -536,9 +541,9 @@ _id_to_string_dict = {
         'ru' : 'Вставить маску',
     },
 
-    'QxMaskEditor.Force_save':{
-        'en' : 'Force save',
-        'ru' : 'Принудительно сохранить',
+    'QxMaskEditor.Force_save_mask':{
+        'en' : 'Force save mask',
+        'ru' : 'Принудительно сохранить маску',
     },
 
     'QxMaskEditor.Delete_mask':{

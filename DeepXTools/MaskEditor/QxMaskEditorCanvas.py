@@ -25,12 +25,13 @@ class QxMaskEditorCanvas(qx.QHBox):
 
         if mask is None:
             mask = NPImage(np.zeros((H,W), np.float32))
-            
+
         mask = mask.grayscale().resize(W, H)
 
         self._mask       = mask.f32().HWC()
         self._mask_uint8 = mask.u8().HWC()
 
+        self._image = image
         self._image_pixmap = qt.QPixmap_from_np(image.bgr().HWC())
 
         self._buffer_overlay_image = np.zeros((H,W,4), np.uint8)
@@ -146,7 +147,6 @@ class QxMaskEditorCanvas(qx.QHBox):
         delete_state_poly_shortcut = qx.QShortcut( qt.QKeyCombination(qt.Qt.Key.Key_E), self)
         delete_state_poly_shortcut.mx_press.listen(lambda: self._fme_result( self._fme.delete_state_poly() ))
 
-
         apply_fill_poly_btn = qx.QPushButton().set_icon(qt.QIcon(qt.QPixmap_colorized(qt.QPixmap(Path(__file__).parent / 'assets' / 'icons' / 'include_poly.png'), qx.StyleColor.ButtonText))).set_icon_size(icon_size).set_tooltip('@(QxMaskEditorCanvas.Apply_fill_poly) (Q)')
         apply_fill_poly_btn.mx_pressed.listen( lambda: apply_fill_poly_shortcut.press())
         apply_fill_poly_btn.mx_released.listen( lambda: apply_fill_poly_shortcut.release())
@@ -175,10 +175,13 @@ class QxMaskEditorCanvas(qx.QHBox):
                     .add(bw_mode_btn).add_spacer(8)
                     .add(red_overlay_btn).add(green_overlay_btn).add(blue_overlay_btn).add_spacer(8)
                     .add(opacity_0_btn).add(opacity_25_btn).add(opacity_50_btn).add(opacity_75_btn)
-                    .v_compact().h_compact())
-        )
+                    .v_compact().h_compact()))
 
         self._update_cursor()
+
+    def get_image(self) -> NPImage:
+        """returns original image"""
+        return self._image
 
     def get_mask(self) -> NPImage:
         """returns current HW1 mask"""
@@ -186,17 +189,17 @@ class QxMaskEditorCanvas(qx.QHBox):
 
     def get_state_hash(self) -> int:
         return id(self._fme_undo[-1])
-    
+
     def get_view_scale(self) -> float|None:
         return self._fme.get_view_scale(actual=True)
-    
+
     def get_view_look_img_pt(self) -> np.ndarray|None:
         return self._fme.get_view_look_img_pt(actual=True)
-    
+
     def set_view_scale(self, view_scale : float):
         self._fme_result(self._fme.set_view_scale(view_scale))
         return self
-    
+
     def set_view_look_img_pt(self, view_look_img_pt : np.ndarray):
         self._fme_result(self._fme.set_view_look_img_pt(view_look_img_pt))
         return self
@@ -302,7 +305,7 @@ class QxMaskEditorCanvas(qx.QHBox):
 
         if new_fme.is_changed_view_scale(fme) or \
            new_fme.is_activated_center_on_cursor(fme):
-            
+
             if (mouse_cli_pt := new_fme.get_mouse_cli_pt(actual=True)) is not None:
                 qt.QCursor.setPos ( self._qfme.map_to_global(qt.QPoint_from_np(mouse_cli_pt)) )
 

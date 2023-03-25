@@ -52,15 +52,14 @@ class MxPreview(mx.Disposable):
     def __init__(self, data_generator : MxDataGenerator, model : MxModel, state : dict = None):
         super().__init__()
         self._state = state = state or {}
-
+        state['directory_state'] = state.get('directory_state', {})
+        
         self._main_thread = ax.get_current_thread()
         self._sub_thread = ax.Thread().dispose_with(self)
 
         self._data_generator = data_generator
         self._model = model
         self._imagespaths = []
-
-        self._directory_state = state.get('directory_state', {})
 
         self._mx_error = mx.TextEmitter().dispose_with(self)
         self._mx_sample = mx.Property[MxPreview.Sample|None]( MxPreview.Sample.from_state(sample_state) if (sample_state := state.get('sample_state', None)) is not None else None ).dispose_with(self)
@@ -145,7 +144,7 @@ class MxPreview(mx.Disposable):
                                                     on_open=self._on_directory_path_open,
                                                     ).dispose_with(self._source_type_disp_bag)
 
-            if (directory_path := self._directory_state.get('directory_path', None)) is not None:
+            if (directory_path := self._state['directory_state'].get('directory_path', None)) is not None:
                 self._mx_directory_path.open(directory_path)
 
         return new_source_type
@@ -167,13 +166,13 @@ class MxPreview(mx.Disposable):
         self._directory_disp_bag = mx.Disposable()
         self._directory_tg = ax.TaskGroup()
 
-        self._mx_directory_image_idx = mx.Number(self._directory_state.get('directory_image_idx', 0), mx.NumberConfig(min=0, max=len(self._imagespaths)-1)).dispose_with(self._directory_disp_bag)
+        self._mx_directory_image_idx = mx.Number(self._state['directory_state'].get('directory_image_idx', 0), mx.NumberConfig(min=0, max=len(self._imagespaths)-1)).dispose_with(self._directory_disp_bag)
         self._mx_directory_image_idx.listen(lambda _: self._infer_directory_sample())
 
-        self._mx_patch_mode = mx.Flag(self._directory_state.get('patch_mode', False)).dispose_with(self._directory_disp_bag)
+        self._mx_patch_mode = mx.Flag(self._state['directory_state'].get('patch_mode', False)).dispose_with(self._directory_disp_bag)
         self._mx_patch_mode.listen(lambda _: self._infer_directory_sample())
 
-        self._mx_sample_count = mx.Number(self._directory_state.get('sample_count', 2), mx.NumberConfig(min=1, max=4)).dispose_with(self._directory_disp_bag)
+        self._mx_sample_count = mx.Number(self._state['directory_state'].get('sample_count', 2), mx.NumberConfig(min=1, max=4)).dispose_with(self._directory_disp_bag)
         self._mx_sample_count.listen(lambda _: self._infer_directory_sample())
 
         self._infer_directory_sample()
@@ -249,16 +248,13 @@ class MxPreview(mx.Disposable):
         d = self._state
         d['sample_state'] = sample.get_state() if (sample := self._mx_sample.get()) else None
         d['source_type'] = self._mx_source_type.get().value
-        if (directory_state := d.get('directory_state', None)) is None:
-            directory_state = d['directory_state'] = {}
 
         if self._mx_source_type.get() == MxPreview.SourceType.Directory:
-            directory_state['directory_path'] = self._mx_directory_path.mx_path.get()
+            d['directory_state']['directory_path'] = self._mx_directory_path.mx_path.get()
 
             if self._mx_directory_path.mx_path.get() is not None:
-                directory_state['directory_image_idx'] = self._mx_directory_image_idx.get()
-                directory_state['patch_mode'] = self._mx_patch_mode.get()
-                directory_state['sample_count'] = self._mx_sample_count.get()
-
+                d['directory_state']['directory_image_idx'] = self._mx_directory_image_idx.get()
+                d['directory_state']['patch_mode'] = self._mx_patch_mode.get()
+                d['directory_state']['sample_count'] = self._mx_sample_count.get()
         return d
 

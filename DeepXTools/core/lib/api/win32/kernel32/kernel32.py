@@ -1,7 +1,7 @@
 from ctypes import POINTER, c_void_p, c_wchar_p
 
-from ..wintypes import (BOOL, DWORD, ERROR, HANDLE, HRESULT, LARGE_INTEGER,
-                        dll_import)
+from ..wintypes import (BOOL, DWORD, ERROR, HANDLE, HRESULT, HWND,
+                        LARGE_INTEGER, dll_import)
 
 
 class PriorityClass(DWORD):
@@ -13,6 +13,9 @@ class PriorityClass(DWORD):
 
 @dll_import('kernel32')
 def CreateEventW(lpEventAttributes : c_void_p, bManualReset : BOOL, bInitialState : BOOL, lpName : c_wchar_p) -> HANDLE: ...
+
+@dll_import('kernel32')
+def GetConsoleWindow() -> HWND: ...
 
 @dll_import('kernel32')
 def GetCurrentProcess() -> HANDLE: ...

@@ -11,7 +11,7 @@ is_darwin = False
 
 if platform.system() == 'Windows':
     is_win = True
-    from ..api.win32 import kernel32, ntdll, winmm, wintypes
+    from ..api.win32 import kernel32, ntdll, winmm, wintypes, user32
 elif platform.system() == 'Linux':
     is_linux = True
 elif platform.system() == 'Darwin':
@@ -120,3 +120,15 @@ def sleep_precise(sec : float):
     else:
         # in *nix already precise according https://docs.python.org/3.0/library/time.html
         time.sleep(sec)
+
+def hide_console_window():
+    if is_win:
+        wnd = kernel32.GetConsoleWindow()
+        if wnd.value != 0:
+            user32.ShowWindow(wnd, user32.SW_HIDE)
+
+def show_console_window():
+    if is_win:
+        wnd = kernel32.GetConsoleWindow()
+        if wnd.value != 0:
+            user32.ShowWindow(wnd, user32.SW_SHOW)

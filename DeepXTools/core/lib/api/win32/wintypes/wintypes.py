@@ -167,11 +167,11 @@ class NTSTATUS(c_ulong):
         return self.__str__()
 
 class HANDLE(c_void_p):
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.value == other.value
-        else:
-            return False
+    # def __eq__(self, other):
+    #     if isinstance(other, self.__class__):
+    #         return self.value == other.value
+    #     else:
+    #         return False
     def __ne__(self, other):
         return not(self == other)
     def __hash__(self):
@@ -181,7 +181,10 @@ class HANDLE(c_void_p):
     def __repr__(self):
         return self.__str__()
 
-
+class HWND(HANDLE):
+    def __str__(self):
+        return f'HWND ({self.value})'
+    
 class BOOL(c_size_t):
     def __eq__(self, other):
         if isinstance(other, self.__class__):

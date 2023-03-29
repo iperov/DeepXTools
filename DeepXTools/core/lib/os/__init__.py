@@ -1,2 +1,3 @@
 from .os import (ProcessPriority, get_cpu_count, get_process_priority,
-                 set_process_priority, sleep_precise)
+                 hide_console_window, set_process_priority,
+                 show_console_window, sleep_precise)

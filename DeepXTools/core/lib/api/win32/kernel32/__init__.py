@@ -1,4 +1,4 @@
-from .kernel32 import (CreateEventW, GetCurrentProcess, GetPriorityClass,
-                       PriorityClass, QueryPerformanceCounter,
-                       QueryPerformanceFrequency, SetPriorityClass, Sleep,
-                       WaitForSingleObject)
+from .kernel32 import (CreateEventW, GetConsoleWindow, GetCurrentProcess,
+                       GetPriorityClass, PriorityClass,
+                       QueryPerformanceCounter, QueryPerformanceFrequency,
+                       SetPriorityClass, Sleep, WaitForSingleObject)

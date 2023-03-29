@@ -496,7 +496,8 @@ def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cud
             target = cuda_bin_path / file.name
             print (f'Copying {target}')
             shutil.copy (str(file), str(target) )
-
+    elif backend == 'directml':
+        builder.install_pip_package('torch-directml')
 
     repo_path = builder.get_internal_path() / 'repo'
 

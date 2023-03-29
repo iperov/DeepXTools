@@ -28,6 +28,11 @@ _id_to_string_dict = {
         'en' : 'Save',
         'ru' : 'Сохранить',
     },
+    
+    'Change':{
+        'en' : 'Change',
+        'ru' : 'Изменить',
+    },
 
     'Close':{
         'en' : 'Close',
@@ -130,7 +135,12 @@ _id_to_string_dict = {
         'en' : 'AsyncX monitor',
         'ru' : 'AsyncX монитор',
     },
-
+    
+    'QAppWindow.Show_console':{
+        'en' : 'Show console',
+        'ru' : 'Показать консоль',
+    },
+    
     'QAppWindow.Quit':{
         'en' : 'Quit',
         'ru' : 'Выход',
@@ -289,7 +299,17 @@ _id_to_string_dict = {
         'en' : 'Output type',
         'ru' : 'Выходной тип',
     },
-
+    
+    'QxDataGenerator.Image_n_Mask' : {
+        'en' : 'Image and mask',
+        'ru' : 'Изображение и маска',
+    },
+    
+    'QxDataGenerator.Image_n_ImageGrayscaled' : {
+        'en' : 'Image and Image grayscaled',
+        'ru' : 'Изображение и обесцвеченное изображение',
+    },
+    
     'QxDataGenerator.Generate_preview' : {
         'en' : 'Generate preview',
         'ru' : 'Генерировать предпросмотр',
@@ -319,7 +339,12 @@ _id_to_string_dict = {
         'en' : 'Base dimension',
         'ru' : 'Базовая размерность',
     },
-
+    
+    'QxModel.UNet_mode' : {
+        'en' : 'U-Net mode',
+        'ru' : 'U-Net режим',
+    },
+    
     'QxModel.Input' : {
         'en' : 'Input',
         'ru' : 'Вход',
@@ -349,7 +374,12 @@ _id_to_string_dict = {
         'en' : 'Batch size',
         'ru' : 'Размер батча',
     },
-
+    
+    'QxModelTrainer.Batch_acc' : {
+        'en' : 'Batch accumulation',
+        'ru' : 'Аккумуляция батча',
+    },
+    
     'QxModelTrainer.Learning_rate' : {
         'en' : 'Learning rate',
         'ru' : 'Скорость обучения',

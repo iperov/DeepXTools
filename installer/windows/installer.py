@@ -45,10 +45,10 @@ class WindowsFolderBuilder:
         if release_path.exists():
             for _ in range(3):
                 print(f'WARNING !!! {release_path} will be removed !')
-            
+
             input('Press enter to continue.')
             input('Are you sure? Press enter to continue.')
-            
+
             shutil.rmtree(release_path)
         while release_path.exists():
             time.sleep(0.1)
@@ -452,7 +452,6 @@ fr"""@echo off
 cd /D %~dp0
 call {self.DIRNAME_INTERNAL}\setenv.bat
 "%PYTHONEXECUTABLE%" {self.DIRNAME_INTERNAL}\{internal_relative_path} {args_str}
-pause
 """)
 
     def create_internal_run_python_script(self, script_name : str, internal_relative_path : str, args_str : str):
@@ -462,7 +461,6 @@ fr"""@echo off
 cd /D %~dp0
 call setenv.bat
 "%PYTHONEXECUTABLE%" {internal_relative_path} {args_str}
-pause
 """)
 
 def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cuda'):
@@ -479,7 +477,7 @@ def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cud
 
     if backend == 'cuda':
         builder.install_pip_package('torch==1.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html')
-        
+
         print('Moving CUDA dlls from Torch to shared directory')
         cuda_bin_path = builder.get_cuda_bin_path()
         torch_lib_path = builder.get_python_site_packages_path() / 'torch' / 'lib'
@@ -509,11 +507,15 @@ def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cud
     print('Creating files.')
 
     release_path = builder.get_release_path()
-    workspace_path = release_path / 'workspace'
-    workspace_path.mkdir(parents=True, exist_ok=True)
 
-    builder.create_run_python_script('MaskEditor.bat', 'repo\\DeepXTools\\main.py', 'run MaskEditor --workspace-dir="%~dp0workspace"')
-    builder.create_run_python_script('DeepRoto.bat', 'repo\\DeepXTools\\main.py', 'run DeepRoto  --workspace-dir="%~dp0workspace"')
+    data_dirpath = release_path / 'data'
+    data_dirpath.mkdir(parents=True, exist_ok=True)
+
+    saves_dirpath = release_path / 'saves'
+    saves_dirpath.mkdir(parents=True, exist_ok=True)
+
+    builder.create_run_python_script('MaskEditor.bat', 'repo\\DeepXTools\\main.py', 'run MaskEditor --ui-data-dir "%~dp0_internal"')
+    builder.create_run_python_script('DeepRoto.bat', 'repo\\DeepXTools\\main.py', 'run DeepRoto  --ui-data-dir "%~dp0_internal"')
 
     builder.install_vscode(folders=['repo/DeepXTools','repo'])
 

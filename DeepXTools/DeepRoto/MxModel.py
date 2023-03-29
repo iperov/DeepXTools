@@ -6,12 +6,15 @@ import numpy as np
 import torch
 import torch.amp
 import torch.nn as nn
+import torch.nn.functional as F
 
 from core import ax, mx
+from core.lib import math as lib_math
 from core.lib import time as lib_time
 from core.lib import torch as lib_torch
 from core.lib.image import NPImage
-from core.lib.torch.modules import TLU, BlurPool, FRNorm2D
+from core.lib.torch import functional as xF
+from core.lib.torch.modules import BlurPool
 from core.lib.torch.optim import AdaBelief, Optimizer
 
 
@@ -29,11 +32,11 @@ class MxModel(mx.Disposable):
         iteration : int
         error : float
         accuracy : float
-    
+
     class InputType(Enum):
         Color = auto()
         Luminance = auto()
-    
+
     def __init__(self, state : dict = None):
         super().__init__()
         state = state or {}
@@ -51,7 +54,7 @@ class MxModel(mx.Disposable):
         self._base_dim   = state.get('base_dim', 32)
         self._iteration  = state.get('iteration', 0)
         self._opt_class = AdaBelief
-        
+
 
         self._mx_device = mx.SingleChoice[lib_torch.DeviceRef](self._device,
                                                                avail=lambda: [lib_torch.get_cpu_device()]+lib_torch.get_avail_gpu_devices()).dispose_with(self)
@@ -79,7 +82,7 @@ class MxModel(mx.Disposable):
     @property
     def mx_base_dim(self) -> mx.INumber:
         return self._mx_base_dim
-    
+
     def get_input_resolution(self) -> int: return self._resolution
     def get_input_ch(self) -> int: return 1 if self._input_type == MxModel.InputType.Luminance else 3
 
@@ -138,7 +141,7 @@ class MxModel(mx.Disposable):
         if reset_decoder:
             mod.reset_module('decoder')
             mod.reset_module('decoder_opt')
-            
+
         if reset_encoder or reset_decoder:
             torch.cuda.empty_cache()
 
@@ -152,7 +155,7 @@ class MxModel(mx.Disposable):
         input_type  = self._input_type
         resolution  = self._resolution
         base_dim    = self._base_dim
-        
+
         yield ax.switch_to(self._main_thread)
 
         self._mx_device.set(device_info)
@@ -194,11 +197,11 @@ class MxModel(mx.Disposable):
 
             # Inference
             encoder : Encoder = self._mod.get_module('encoder', device=device, train=False)
-            decoder : Encoder = self._mod.get_module('decoder', device=device, train=False)
+            decoder : Decoder = self._mod.get_module('decoder', device=device, train=False)
 
             with torch.no_grad():
-                x0, x1, x2, x3, x4, x5, x = encoder(input_t)
-                pred_mask_t = decoder(x0, x1, x2, x3, x4, x5, x) / 2.0 + 0.5
+                skips, x = encoder(input_t)
+                pred_mask_t = decoder(skips, x) / 2.0 + 0.5
 
             pred_mask_nd = pred_mask_t.detach().cpu().numpy()
 
@@ -215,10 +218,11 @@ class MxModel(mx.Disposable):
     def train_step(self,    image_np : List[NPImage],
                             target_mask_np : List[NPImage],
                             mse_power : float = 1.0,
-                            # dssim_x4_power : float = 0.0,
-                            # dssim_x8_power : float = 0.0,
-                            # dssim_x16_power : float = 0.0,
-                            # dssim_x32_power : float = 0.0,
+                            dssim_x4_power : float = 0.0,
+                            dssim_x8_power : float = 0.0,
+                            dssim_x16_power : float = 0.0,
+                            dssim_x32_power : float = 0.0,
+                            batch_acc : int = 1,
                             lr=5e-5,
                             lr_dropout=0.3,
                             train_encoder=True,
@@ -267,64 +271,68 @@ class MxModel(mx.Disposable):
 
             # Inference
             encoder : Encoder = self._mod.get_module('encoder', device=device, train=True)
-            decoder : Encoder = self._mod.get_module('decoder', device=device, train=True)
+            decoder : Decoder = self._mod.get_module('decoder', device=device, train=True)
 
             if train_encoder:
                 encoder_opt : Optimizer = self._mod.get_module('encoder_opt', device=device)
-                encoder_opt.zero_grad()
+                if (iteration % batch_acc) == 0:
+                    encoder_opt.zero_grad()
 
             if train_decoder:
                 decoder_opt : Optimizer = self._mod.get_module('decoder_opt', device=device)
-                decoder_opt.zero_grad()
-            
-            #with torch.autocast(device.backend):           
-            x0, x1, x2, x3, x4, x5, x = encoder(input_t)
-            pred_mask_t = decoder(x0, x1, x2, x3, x4, x5, x)
-        
+                if (iteration % batch_acc) == 0:
+                    decoder_opt.zero_grad()
+
+            #with torch.autocast(device.backend):
+            skips, x = encoder(input_t)
+            pred_mask_t = decoder(skips, x)
             _, _, H, W = pred_mask_t.shape
-            
+
             # Collect losses
             losses = []
-            
+
             if mse_power != 0.0:
                 losses.append( torch.mean(mse_power*10*torch.square(pred_mask_t-target_mask_t), (1,2,3)) )
-            
-            # if (dssim_x4_power + dssim_x8_power + dssim_x16_power + dssim_x32_power) != 0.0:
-            #     pred_mask_u_t = pred_mask_t / 2 + 0.5
-            #     target_mask_u_t = target_mask_t / 2 + 0.5
-            
-            # if dssim_x4_power != 0.0:
-            #     kernel_size = lib_math.next_odd(resolution//4)
-            #     losses.append( dssim_x4_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
-            
-            # if dssim_x8_power != 0.0:
-            #     kernel_size = lib_math.next_odd(resolution//8)
-            #     losses.append( dssim_x8_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
-            
-            # if dssim_x16_power != 0.0:
-            #     kernel_size = lib_math.next_odd(resolution//16)
-            #     losses.append( dssim_x16_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
-            
-            # if dssim_x32_power != 0.0:
-            #     kernel_size = lib_math.next_odd(resolution//32)
-            #     losses.append( dssim_x32_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
-            
+
+            if (dssim_x4_power + dssim_x8_power + dssim_x16_power + dssim_x32_power) != 0.0:
+                pred_mask_u_t = pred_mask_t / 2 + 0.5
+                target_mask_u_t = target_mask_t / 2 + 0.5
+
+            if dssim_x4_power != 0.0:
+                kernel_size = lib_math.next_odd(resolution//4)
+                losses.append( dssim_x4_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+
+            if dssim_x8_power != 0.0:
+                kernel_size = lib_math.next_odd(resolution//8)
+                losses.append( dssim_x8_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+
+            if dssim_x16_power != 0.0:
+                kernel_size = lib_math.next_odd(resolution//16)
+                losses.append( dssim_x16_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+
+            if dssim_x32_power != 0.0:
+                kernel_size = lib_math.next_odd(resolution//32)
+                losses.append( dssim_x32_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+
             loss_t = None
             if len(losses) != 0:
                 loss_t = sum(losses).mean()
                 loss_t.backward()
-                
-                # Optimization
-                if train_encoder:
-                    encoder_opt.step(iteration=iteration, lr=lr, lr_dropout=lr_dropout)
 
-                if train_decoder:
-                    decoder_opt.step(iteration=iteration, lr=lr, lr_dropout=lr_dropout)
-                   
+                # Optimization
+                if (iteration % batch_acc) == (batch_acc-1):
+                    grad_mult = 1.0 / batch_acc
+
+                    if train_encoder:
+                        encoder_opt.step(iteration=iteration, grad_mult=grad_mult, lr=lr, lr_dropout=lr_dropout)
+
+                    if train_decoder:
+                        decoder_opt.step(iteration=iteration, grad_mult=grad_mult, lr=lr, lr_dropout=lr_dropout)
+
             # Metrics
             error    = float( loss_t.detach().cpu().numpy() ) if loss_t is not None else 0
             accuracy = float( (1 - torch.abs(pred_mask_t-target_mask_t).sum((-1,-2)).mean() / (H*W*2)).detach().cpu().numpy() )
-            
+
             # Update vars
             self._iteration = iteration + 1
 
@@ -341,68 +349,33 @@ class MxModel(mx.Disposable):
 
 
 # Network blocks
-class ConvBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
-        super().__init__()
-        self._conv = nn.Conv2d (in_ch, out_ch, kernel_size=3, padding=1)
-        self._frn = FRNorm2D(out_ch)
-        self._tlu = TLU(out_ch)
 
-    def forward(self, x):
-        return self._tlu(self._frn(self._conv(x)))
-
-class UpConvBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
-        super().__init__()
-        self._conv = nn.ConvTranspose2d (in_ch, out_ch, kernel_size=3, stride=2, padding=1, output_padding=1)
-        self._frn = FRNorm2D(out_ch)
-        self._tlu = TLU(out_ch)
-
-    def forward(self, x):
-        return self._tlu(self._frn(self._conv(x)))
-    
 class Encoder(nn.Module):
-    def __init__(self, resolution, in_ch, base_dim=32):
+    def __init__(self, resolution, in_ch, base_dim=32, n_downs=6):
         super().__init__()
         self._resolution = resolution
         self._base_dim = base_dim
+        self._n_downs = n_downs
 
-        self._in_beta = nn.parameter.Parameter( torch.Tensor(in_ch,), requires_grad=True)
-        self._in_gamma = nn.parameter.Parameter( torch.Tensor(in_ch,), requires_grad=True)
+        self._in_beta = nn.parameter.Parameter( torch.zeros(in_ch,), requires_grad=True)
+        self._in_gamma = nn.parameter.Parameter( torch.ones(in_ch,), requires_grad=True)
         self._in = nn.Conv2d(in_ch, base_dim, kernel_size=1, stride=1, padding=0, bias=False)
 
-        self._conv01 = ConvBlock(base_dim, base_dim)
-        self._conv02 = ConvBlock(base_dim, base_dim)
-        self._bp0 = BlurPool (base_dim, kernel_size=4)
+        conv_list = []
+        bp_list = []
+        for i_down in range(n_downs):
+            i_ch = base_dim * min(2**(i_down)  , 8)
+            o_ch = base_dim * min(2**(i_down+1), 8)
 
-        self._conv11 = ConvBlock(base_dim, base_dim*2)
-        self._conv12 = ConvBlock(base_dim*2, base_dim*2)
-        self._bp1 = BlurPool (base_dim*2, kernel_size=3)
+            conv_list.append( nn.Conv2d (i_ch, o_ch, kernel_size=5, padding=2) )
+            bp_list.append( BlurPool (o_ch, kernel_size=max(2, 4-i_down)) )
 
-        self._conv21 = ConvBlock(base_dim*2, base_dim*4)
-        self._conv22 = ConvBlock(base_dim*4, base_dim*4)
-        self._bp2 = BlurPool (base_dim*4, kernel_size=2)
+        self._conv_list = nn.ModuleList(conv_list)
+        self._bp_list = nn.ModuleList(bp_list)
 
-        self._conv31 = ConvBlock(base_dim*4, base_dim*8)
-        self._conv32 = ConvBlock(base_dim*8, base_dim*8)
-        self._conv33 = ConvBlock(base_dim*8, base_dim*8)
-        self._bp3 = BlurPool (base_dim*8, kernel_size=2)
-
-        self._conv41 = ConvBlock(base_dim*8, base_dim*8)
-        self._conv42 = ConvBlock(base_dim*8, base_dim*8)
-        self._conv43 = ConvBlock(base_dim*8, base_dim*8)
-        self._bp4 = BlurPool (base_dim*8, kernel_size=2)
-
-        self._conv51 = ConvBlock(base_dim*8, base_dim*8)
-        self._conv52 = ConvBlock(base_dim*8, base_dim*8)
-        self._conv53 = ConvBlock(base_dim*8, base_dim*8)
-        self._bp5 = BlurPool (base_dim*8, kernel_size=2)
-
-        nn.init.zeros_(self._in_beta)
-        nn.init.ones_(self._in_gamma)
 
     def get_out_resolution(self) -> int:
-        return self._resolution // (2**6)
+        return self._resolution // (2**self._n_downs)
 
     def forward(self, inp):
         x = inp
@@ -411,123 +384,54 @@ class Encoder(nn.Module):
         x = x * self._in_gamma[None,:,None,None]
         x = self._in(x)
 
-        x = self._conv01(x)
-        x = x0 = self._conv02(x)
-        x = self._bp0(x)
+        skips = []
+        for conv, bp in zip(self._conv_list, self._bp_list):
+            x = F.leaky_relu(conv(x), 0.1)
+            x = bp(x)
+            skips.insert(0, x)
 
-        x = self._conv11(x)
-        x = x1 = self._conv12(x)
-        x = self._bp1(x)
-
-        x = self._conv21(x)
-        x = x2 = self._conv22(x)
-        x = self._bp2(x)
-
-        x = self._conv31(x)
-        x = self._conv32(x)
-        x = x3 = self._conv33(x)
-        x = self._bp3(x)
-
-        x = self._conv41(x)
-        x = self._conv42(x)
-        x = x4 = self._conv43(x)
-        x = self._bp4(x)
-
-        x = self._conv51(x)
-        x = self._conv52(x)
-        x = x5 = self._conv53(x)
-        x = self._bp5(x)
-
-        return [x0,x1,x2,x3,x4,x5,x]
+        return skips, x
 
 
-# class Bottleneck(nn.Module):
-#     def __init__(self, l_res, base_dim=32, bottleneck_dim=512):
-#         """"""
-#         super().__init__()
-#         self._l_res = l_res
-#         self._base_dim = base_dim
-#         self._dense1 = nn.Linear ( l_res*l_res* base_dim*8, bottleneck_dim)
-#         self._dense2 = nn.Linear ( bottleneck_dim, l_res*l_res* base_dim*8)
-
-#     def forward(self, x):
-#         x = x.reshape(x.shape[0], -1)
-#         x = self._dense1(x)
-#         x = self._dense2(x)
-#         x = x.reshape(-1, self._base_dim*8, self._l_res, self._l_res)
-
-#         x = x * (x.square().mean(dim=[1,2,3], keepdim=True) + 1e-06).rsqrt()
-#         return x
 
 class Decoder(nn.Module):
-    def __init__(self, out_ch, base_dim=32):
+    def __init__(self, out_ch, base_dim=32, n_downs=6):
         super().__init__()
-                
-        self._up5 = UpConvBlock (base_dim*8, base_dim*4)
-        
-        self._uconv53 = ConvBlock(base_dim*12, base_dim*8)
-        self._uconv52 = ConvBlock(base_dim*8, base_dim*8)
-        self._uconv51 = ConvBlock(base_dim*8, base_dim*8)
+        self._n_downs = n_downs
 
-        self._up4 = UpConvBlock (base_dim*8, base_dim*4)
-        self._uconv43 = ConvBlock(base_dim*12, base_dim*8)
-        self._uconv42 = ConvBlock(base_dim*8, base_dim*8)
-        self._uconv41 = ConvBlock(base_dim*8, base_dim*8)
+        conv_s1_list = []
+        conv_s2_list = []
+        conv_r_list = []
+        conv_c_list = []
 
-        self._up3 = UpConvBlock (base_dim*8, base_dim*4)
-        self._uconv33 = ConvBlock(base_dim*12, base_dim*8)
-        self._uconv32 = ConvBlock(base_dim*8, base_dim*8)
-        self._uconv31 = ConvBlock(base_dim*8, base_dim*8)
+        for i_down in range(n_downs-1, -1, -1):
+            i_ch = base_dim * min(2**(i_down+1), 8)
+            o_ch = base_dim * min(2**(i_down)  , 8)
 
-        self._up2 = UpConvBlock (base_dim*8, base_dim*4)
-        self._uconv22 = ConvBlock(base_dim*8, base_dim*4)
-        self._uconv21 = ConvBlock(base_dim*4, base_dim*4)
+            conv_s1_list.append( nn.Conv2d(i_ch, i_ch, kernel_size=3, padding=1) )
+            conv_s2_list.append( nn.Conv2d(i_ch, i_ch, kernel_size=3, padding=1) )
+            conv_r_list.append( nn.Conv2d(i_ch, i_ch, kernel_size=3, padding=1) )
+            conv_c_list.append( nn.Conv2d(i_ch, o_ch*4, kernel_size=3, padding=1) )
 
-        self._up1 = UpConvBlock (base_dim*4, base_dim*2)
-        self._uconv12 = ConvBlock(base_dim*4, base_dim*2)
-        self._uconv11 = ConvBlock(base_dim*2, base_dim*2)
+        self._conv_s1_list = nn.ModuleList(conv_s1_list)
+        self._conv_s2_list = nn.ModuleList(conv_s2_list)
+        self._conv_r_list = nn.ModuleList(conv_r_list)
+        self._conv_c_list = nn.ModuleList(conv_c_list)
 
-        self._up0 = UpConvBlock (base_dim*2, base_dim)
-        self._uconv02 = ConvBlock(base_dim*2, base_dim)
-        self._uconv01 = ConvBlock(base_dim, base_dim)
-
+        self._out_conv = nn.Conv2d (base_dim, base_dim, kernel_size=3, padding=1)
         self._out = nn.Conv2d(base_dim, out_ch, kernel_size=1, stride=1, padding=0, bias=False)
-        self._out_gamma = nn.parameter.Parameter( torch.Tensor(out_ch,), requires_grad=True)
-        self._out_beta = nn.parameter.Parameter( torch.Tensor(out_ch,), requires_grad=True)
+        self._out_gamma = nn.parameter.Parameter( torch.ones(out_ch,), requires_grad=True)
+        self._out_beta = nn.parameter.Parameter( torch.zeros(out_ch,), requires_grad=True)
 
-        nn.init.ones_(self._out_gamma)
-        nn.init.zeros_(self._out_beta)
-        
-        
-    def forward(self, x0, x1, x2, x3, x4, x5, x):
-        x = self._up5(x)
-        
-        x = self._uconv53(torch.cat([x,x5],axis=1))
-        x = self._uconv52(x)
-        x = self._uconv51(x)
 
-        x = self._up4(x)
-        x = self._uconv43(torch.cat([x,x4],axis=1))
-        x = self._uconv42(x)
-        x = self._uconv41(x)
+    def forward(self, skips : List[torch.Tensor], x):
 
-        x = self._up3(x)
-        x = self._uconv33(torch.cat([x,x3],axis=1))
-        x = self._uconv32(x)
-        x = self._uconv31(x)
+        for skip_x, s1, s2, r, c, in zip(skips, self._conv_s1_list, self._conv_s2_list, self._conv_r_list, self._conv_c_list):
+            x = F.leaky_relu(x + r(x) + s2(F.leaky_relu(s1(skip_x), 0.2)) , 0.2)
+            x = F.leaky_relu(c(x), 0.1)
+            x = F.pixel_shuffle(x, 2)
 
-        x = self._up2(x)
-        x = self._uconv22(torch.cat([x,x2],axis=1))
-        x = self._uconv21(x)
-
-        x = self._up1(x)
-        x = self._uconv12(torch.cat([x,x1],axis=1))
-        x = self._uconv11(x)
-
-        x = self._up0(x)
-        x = self._uconv02(torch.cat([x,x0],axis=1))
-        x = self._uconv01(x)
-
+        x = F.leaky_relu(self._out_conv(x), 0.1)
         x = self._out(x)
         x = x * self._out_gamma[None,:,None,None]
         x = x + self._out_beta[None,:,None,None]

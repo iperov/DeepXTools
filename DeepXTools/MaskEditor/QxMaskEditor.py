@@ -16,10 +16,9 @@ from .QxMaskEditorCanvas import QxMaskEditorCanvas
 
 
 class QxMaskEditor(qx.QVBox):
-    def __init__(self, root_path : Path, q_menu_bar : qx.QMenuBar):
+    def __init__(self, q_menu_bar : qx.QMenuBar):
         super().__init__()
         # L0
-        self._root_path = root_path
         self._q_menu_bar = q_menu_bar
         self._q_holder = qx.QVBox()
         self._q_holder_top_bar = qx.QHBox()
@@ -58,7 +57,7 @@ class QxMaskEditor(qx.QVBox):
 
         #
         (self   .add(qx.QHBox()
-                        .add(qx.QMxPathState(mx_path_state).set_directory(root_path))
+                        .add(qx.QMxPathState(mx_path_state))
                         .add(self._q_holder_top_bar).v_compact() )
                 .add(self._q_holder) )
 

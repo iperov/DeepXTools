@@ -23,9 +23,9 @@ class MxDataGenerator(mx.Disposable):
         Fit = auto()
         Patch = auto()
 
-    # class OutputType(Enum):
-    #     Image_n_Mask = auto()
-    #     Image_n_ImageGrayscaled = auto()
+    class OutputType(Enum):
+        Image_n_Mask = auto()
+        Image_n_ImageGrayscaled = auto()
     
     @dataclass
     class GenResult:
@@ -48,10 +48,10 @@ class MxDataGenerator(mx.Disposable):
         self._job_thread = ax.Thread('job_thread').dispose_with(self)
         self._job_thread_pool = ax.ThreadPool(name='DataGeneratorThreadPool').dispose_with(self)
 
-        #self._image_paths : List[Path] = []
+        self._image_paths : List[Path] = []
         self._image_mask_paths : List[Tuple[Path,Path]] = []
 
-        #self._image_indexer : lib_index.ProbIndexer1D = None
+        self._image_indexer : lib_index.ProbIndexer1D = None
         self._image_mask_indexer : lib_index.ProbIndexer1D = None
 
         self._reloading = False
@@ -62,8 +62,7 @@ class MxDataGenerator(mx.Disposable):
         self._mx_image_ds_ref_list = MxImageDSRefList(state=state.get('image_ds_ref_list', None)).dispose_with(self)
 
         self._mx_mode = mx.SingleChoice[MxDataGenerator.Mode](MxDataGenerator.Mode(state.get('mode', MxDataGenerator.Mode.Fit.value)), avail=lambda: [*MxDataGenerator.Mode]).dispose_with(self)
-
-        #self._mx_output_type = mx.SingleChoice[MxDataGenerator.OutputType](MxDataGenerator.OutputType(state.get('output_type', MxDataGenerator.OutputType.Image_n_Mask.value)), avail=lambda: [*MxDataGenerator.OutputType]).dispose_with(self)
+        self._mx_output_type = mx.SingleChoice[MxDataGenerator.OutputType](MxDataGenerator.OutputType(state.get('output_type', MxDataGenerator.OutputType.Image_n_Mask.value)), avail=lambda: [*MxDataGenerator.OutputType]).dispose_with(self)
 
         self._mx_offset_tx = mx.Number(state.get('offset_tx', 0.0), config=mx.NumberConfig(min=-2.0, max=2.0, step=0.01, decimals=2)).dispose_with(self)
         self._mx_offset_ty = mx.Number(state.get('offset_ty', 0.0), config=mx.NumberConfig(min=-2.0, max=2.0, step=0.01, decimals=2)).dispose_with(self)
@@ -78,9 +77,9 @@ class MxDataGenerator(mx.Disposable):
         self._mx_rnd_flip = mx.Flag( state.get('rnd_flip', default_rnd_flip) ).dispose_with(self)
 
         self._mx_transform_intensity = mx.Number(state.get('transform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
-        self._mx_image_deform_intensity = mx.Number(state.get('image_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
+        self._mx_image_deform_intensity = mx.Number(state.get('image_deform_intensity', 0.5), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
         self._mx_image_deform_intensity.listen(lambda v: self._mx_mask_deform_intensity.set(v) if self._mx_mask_deform_intensity.get() > v else ... )
-        self._mx_mask_deform_intensity = mx.Number(state.get('mask_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2), 
+        self._mx_mask_deform_intensity = mx.Number(state.get('mask_deform_intensity', 0.5), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2), 
                                                     filter=lambda n,o: min(n, self._mx_image_deform_intensity.get())  ).dispose_with(self)
         
         self._mx_rnd_levels_shift   = mx.Flag( state.get('rnd_levels_shift', False) ).dispose_with(self)
@@ -100,9 +99,9 @@ class MxDataGenerator(mx.Disposable):
     @property
     def mx_mode(self) -> mx.ISingleChoice[MxDataGenerator.Mode]:
         return self._mx_mode
-    # @property
-    # def mx_output_type(self) -> mx.ISingleChoice[MxDataGenerator.OutputType]:
-    #     return self._mx_output_type
+    @property
+    def mx_output_type(self) -> mx.ISingleChoice[MxDataGenerator.OutputType]:
+        return self._mx_output_type
     @property
     def mx_offset_tx(self) -> mx.INumber:
         """Avail when mx_mode == Fit"""
@@ -166,7 +165,7 @@ class MxDataGenerator(mx.Disposable):
     def get_state(self) -> dict:
         return {'image_ds_ref_list' : self._mx_image_ds_ref_list.get_state(),
                 'mode' : self._mx_mode.get().value,
-                # 'output_type' : self._mx_output_type.get().value,
+                'output_type' : self._mx_output_type.get().value,
 
                 'offset_tx' : self._mx_offset_tx.get(),
                 'offset_ty' : self._mx_offset_ty.get(),
@@ -210,11 +209,11 @@ class MxDataGenerator(mx.Disposable):
         err = None
         try:
             # Collect file paths from disk.
-            #all_image_paths = []
+            all_image_paths = []
             all_image_mask_paths = []
             for path, mask_type in ar:
-                #all_image_paths += (
                 image_paths = lib_path.get_files_paths(path, extensions=NPImage.avail_image_suffixes())
+                all_image_paths += image_paths
 
                 imagepath_by_stem = {imagepath.stem : imagepath for imagepath in image_paths}
 
@@ -232,10 +231,10 @@ class MxDataGenerator(mx.Disposable):
         self._reloading = False
 
         if err is None:
-            #self._image_paths = all_image_paths
+            self._image_paths = all_image_paths
             self._image_mask_paths = all_image_mask_paths
 
-            #self._image_indexer = lib_index.ProbIndexer1D(len(all_image_paths))
+            self._image_indexer = lib_index.ProbIndexer1D(len(all_image_paths))
             self._image_mask_indexer = lib_index.ProbIndexer1D(len(all_image_mask_paths))
         else:
             self._mx_error.emit(str(err))
@@ -258,21 +257,21 @@ class MxDataGenerator(mx.Disposable):
         while self._reloading:
             yield ax.sleep(0.1)
 
-        #image_paths = self._image_paths
-        #image_indexer = self._image_indexer
+        image_paths = self._image_paths
+        image_indexer = self._image_indexer
 
         image_mask_paths = self._image_mask_paths
         image_mask_indexer = self._image_mask_indexer
 
         mode = self._mx_mode.get()
-        #output_type = self._mx_output_type.get()
+        output_type = self._mx_output_type.get()
 
-        #if output_type == MxDataGenerator.OutputType.Image_n_Mask:
-        if len(image_mask_paths) == 0:
-            yield ax.cancel(error=Exception('No training data.'))
-        # elif output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled:
-        #     if len(image_paths) == 0:
-        #         yield ax.cancel(error=Exception('No training data.'))
+        if output_type == MxDataGenerator.OutputType.Image_n_Mask:
+            if len(image_mask_paths) == 0:
+                yield ax.cancel(error=Exception('No training data.'))
+        elif output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled:
+            if len(image_paths) == 0:
+                yield ax.cancel(error=Exception('No training data.'))
 
         offset_tx      = self._mx_offset_tx.get()
         offset_ty      = self._mx_offset_ty.get()
@@ -325,23 +324,23 @@ class MxDataGenerator(mx.Disposable):
         ]
 
 
-        for idx in (image_mask_indexer.generate(batch_size)):# if output_type == MxDataGenerator.OutputType.Image_n_Mask else
-                    #image_indexer.generate(batch_size) if output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled else ...):
+        for idx in (image_mask_indexer.generate(batch_size) if output_type == MxDataGenerator.OutputType.Image_n_Mask else \
+                    image_indexer.generate(batch_size) if output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled else ...):
 
-            #if output_type == MxDataGenerator.OutputType.Image_n_Mask:
-            imagepath, maskpath = image_mask_paths[idx]
-            #elif output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled:
-            #    imagepath = maskpath = image_paths[idx]
+            if output_type == MxDataGenerator.OutputType.Image_n_Mask:
+                imagepath, maskpath = image_mask_paths[idx]
+            elif output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled:
+                imagepath = maskpath = image_paths[idx]
 
             out_image_paths.append(imagepath)
             out_target_mask_paths.append(maskpath)
 
             try:
-                #if output_type == MxDataGenerator.OutputType.Image_n_Mask:
-                img = NPImage.from_file(imagepath)
-                mask = NPImage.from_file(maskpath)
-                #elif output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled:
-                #    img = mask = NPImage.from_file(imagepath)
+                if output_type == MxDataGenerator.OutputType.Image_n_Mask:
+                    img = NPImage.from_file(imagepath)
+                    mask = NPImage.from_file(maskpath)
+                elif output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled:
+                    img = mask = NPImage.from_file(imagepath)
             except Exception as e:
                 yield ax.cancel(error=e)
 

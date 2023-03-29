@@ -61,13 +61,13 @@ class QxDataGenerator(qx.QVBox):
                                     
                             .add_spacer(8)
                                     
-                            # .add(qx.QHBox()
-                            #                     .add(qx.QLabel().set_text('@(QxDataGenerator.Output_type)'), align=qx.Align.RightF)
-                            #                     .add(qx.QComboBoxMxSingleChoice(data_gen.mx_output_type,
-                            #                                             stringifier=lambda val: {MxDataGenerator.OutputType.Image_n_Mask : '@(QxDataGenerator.Image_n_Mask)',
-                            #                                                                      MxDataGenerator.OutputType.Image_n_ImageGrayscaled : '@(QxDataGenerator.Image_n_ImageGrayscaled)'}[val]))
+                            .add(qx.QHBox()
+                                                .add(qx.QLabel().set_text('@(QxDataGenerator.Output_type)'), align=qx.Align.RightF)
+                                                .add(qx.QComboBoxMxSingleChoice(data_gen.mx_output_type,
+                                                                        stringifier=lambda val: {MxDataGenerator.OutputType.Image_n_Mask : '@(QxDataGenerator.Image_n_Mask)',
+                                                                                                 MxDataGenerator.OutputType.Image_n_ImageGrayscaled : '@(QxDataGenerator.Image_n_ImageGrayscaled)'}[val]))
                                              
-                            #                     , align=qx.Align.RightF)      
+                                                , align=qx.Align.RightF)      
                                     
 
                         , align=qx.Align.CenterV)

@@ -26,14 +26,13 @@ class MxModelTrainer(mx.Disposable):
 
         self._mx_error = mx.TextEmitter().dispose_with(self)
         self._mx_batch_size = mx.Number(state.get('batch_size', 4), config=mx.NumberConfig(min=1, max=64, step=1)).dispose_with(self)
+        self._mx_batch_acc = mx.Number(state.get('batch_acc', 1), config=mx.NumberConfig(min=1, max=512, step=1)).dispose_with(self)
         self._mx_learning_rate = mx.Number(state.get('learning_rate', 250), config=mx.NumberConfig(min=1, max=1000, step=1)).dispose_with(self)
         self._mx_train_encoder = mx.Flag(state.get('train_encoder', True)).dispose_with(self)
         self._mx_train_decoder = mx.Flag(state.get('train_decoder', True)).dispose_with(self)
-        # self._mx_mse_power = mx.Number(state.get('mse_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
-        # self._mx_dssim_x4_power = mx.Number(state.get('dssim_x4_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
-        # self._mx_dssim_x8_power = mx.Number(state.get('dssim_x8_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
-        # self._mx_dssim_x16_power = mx.Number(state.get('dssim_x16_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
-        # self._mx_dssim_x32_power = mx.Number(state.get('dssim_x32_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
+        
+        self._mx_mse_power = mx.Number(state.get('mse_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
+        self._mx_dssim_power = mx.Number(state.get('dssim_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
         self._mx_training = mx.Flag(False).dispose_with(self)
         self._mx_iteration_time = mx.Property[float](0.0).dispose_with(self)
 
@@ -52,21 +51,18 @@ class MxModelTrainer(mx.Disposable):
     @property
     def mx_batch_size(self) -> mx.INumber: return self._mx_batch_size
     @property
+    def mx_batch_acc(self) -> mx.INumber: return self._mx_batch_acc
+    @property
     def mx_learning_rate(self) -> mx.INumber: return self._mx_learning_rate
-    # @property
-    # def mx_mse_power(self) -> mx.INumber: return self._mx_mse_power
-    # @property
-    # def mx_dssim_x4_power(self) -> mx.INumber: return self._mx_dssim_x4_power
-    # @property
-    # def mx_dssim_x8_power(self) -> mx.INumber: return self._mx_dssim_x8_power
-    # @property
-    # def mx_dssim_x16_power(self) -> mx.INumber: return self._mx_dssim_x16_power
-    # @property
-    # def mx_dssim_x32_power(self) -> mx.INumber: return self._mx_dssim_x32_power
+    @property
+    def mx_mse_power(self) -> mx.INumber: return self._mx_mse_power
+    @property
+    def mx_dssim_power(self) -> mx.INumber: return self._mx_dssim_power
     @property
     def mx_train_encoder(self) -> mx.IFlag: return self._mx_train_encoder
     @property
     def mx_train_decoder(self) -> mx.IFlag: return self._mx_train_decoder
+    
     @property
     def mx_training(self) -> mx.IFlag_r:
         """Indicates training or not"""
@@ -86,12 +82,10 @@ class MxModelTrainer(mx.Disposable):
             yield ax.cancel(metrics_graph_t.error)
 
         return {'batch_size' : self._mx_batch_size.get(),
+                'batch_acc' : self._mx_batch_acc.get(),
                 'learning_rate' : self._mx_learning_rate.get(),
-                # 'mse_power' : self._mx_mse_power.get(),
-                # 'dssim_x4_power' : self._mx_dssim_x4_power.get(),
-                # 'dssim_x8_power' : self._mx_dssim_x8_power.get(),
-                # 'dssim_x16_power' : self._mx_dssim_x16_power.get(),
-                # 'dssim_x32_power' : self._mx_dssim_x32_power.get(),
+                'mse_power' : self._mx_mse_power.get(),
+                'dssim_power' : self._mx_dssim_power.get(),
                 'train_encoder' : self._mx_train_encoder.get(),
                 'train_decoder' : self._mx_train_decoder.get(),
                 'training' : self._mx_training.get(),
@@ -125,15 +119,13 @@ class MxModelTrainer(mx.Disposable):
             yield ax.switch_to(self._main_thread)
 
             batch_size = self._mx_batch_size.get()
+            batch_acc = self._mx_batch_acc.get()
             lr = self._mx_learning_rate.get() * 1e-6
             train_encoder = self._mx_train_encoder.get()
             train_decoder = self._mx_train_decoder.get()
 
-            # mse_power = self._mx_mse_power.get()
-            # dssim_x4_power = self._mx_dssim_x4_power.get()
-            # dssim_x8_power = self._mx_dssim_x8_power.get()
-            # dssim_x16_power = self._mx_dssim_x16_power.get()
-            # dssim_x32_power = self._mx_dssim_x32_power.get()
+            mse_power = self._mx_mse_power.get()
+            dssim_power = self._mx_dssim_power.get()
 
             self._mx_iteration_time.set(iteration_time)
 
@@ -154,14 +146,16 @@ class MxModelTrainer(mx.Disposable):
                 data = dg_data.popleft()
                 training_tasks.add( model.train_step(   image_np=data.image_np,
                                                         target_mask_np=data.target_mask_np,
-                                                        # mse_power=mse_power,
-                                                        # dssim_x4_power=dssim_x4_power,
-                                                        # dssim_x8_power=dssim_x8_power,
-                                                        # dssim_x16_power=dssim_x16_power,
-                                                        # dssim_x32_power=dssim_x32_power,
+                                                        mse_power=mse_power,
+                                                        dssim_x4_power=dssim_power,
+                                                        dssim_x8_power=dssim_power,
+                                                        dssim_x16_power=dssim_power,
+                                                        dssim_x32_power=dssim_power,
+                                                        batch_acc=batch_acc,
                                                         lr=lr,
                                                         train_encoder=train_encoder,
-                                                        train_decoder=train_decoder, ))
+                                                        train_decoder=train_decoder, 
+                                                        ))
 
             for t in training_tasks.fetch(succeeded=True):
                 t_result = t.result

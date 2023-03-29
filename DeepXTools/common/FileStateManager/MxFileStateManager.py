@@ -28,26 +28,22 @@ class MxFileStateManager(mx.Disposable):
         Error = auto()
         Initialized = auto()
 
-    def __init__(self,  state_path : Path,
-                        cwd : Path = None,
+    def __init__(self,  file_suffix : str,
+                        rel_path : Path = None,
                         on_close : Callable[ [], ax.Task ] = None,
                         task_on_load : Callable[ [Dict], ax.Task ] = None,
                         task_get_state : Callable[ [], ax.Task[Dict] ] = None ):
         """```
-            state_path
-            
-            cwd(None)   Path    current working directory.
-                                If specified, converts all Paths in state dict
-                                to relative to cwd, if possible.
+            rel_path(None)   Path   Default: os.getcwd()
+                                    converts all Paths in state dict
+                                    to relative to cwd, if possible.
 
             on_close            called from main thread
 
-            task_on_load        called from undetermined thread
+            task_on_load        called from main thread
 
-            task_get_state      called from undetermined thread
+            task_get_state      called from main thread
         ```
-
-        Automatically starts loading state_path.
 
         Automatically closes on dispose.
 
@@ -55,13 +51,12 @@ class MxFileStateManager(mx.Disposable):
         """
 
         super().__init__()
-        self._state_path = state_path
-        self._state_path_part = state_path.parent / (state_path.name + '.part')
-        self._root_path = state_path.parent
-        self._stem = state_path.stem
-        self._suffix = state_path.suffix
-
-        self._cwd = cwd
+        self._state_path : Path = None
+        
+        if rel_path is None:
+            rel_path = Path(os.getcwd())
+        self._rel_path = rel_path
+        
         self._on_close = on_close
         self._task_on_load = task_on_load
         self._task_get_state = task_get_state
@@ -69,11 +64,13 @@ class MxFileStateManager(mx.Disposable):
         self._mx_state = mx.Property[MxFileStateManager.State](MxFileStateManager.State.Uninitialized).dispose_with(self)
         self._mx_error = mx.Property[Exception|None](None).dispose_with(self)
 
-        self._mx_load_menu = mx.Menu[MxFileStateManager.StatePath](
-                                avail_choices=lambda: [ MxFileStateManager.StatePath(filepath)
-                                                        for filepath in lib_path.get_files_paths(self._root_path)
-                                                        if filepath.stem.startswith(self._stem) and filepath.suffix == self._suffix],
-                                on_choose=lambda choice: self._reload(choice.path) ).dispose_with(self)
+        self._mx_path = mx.PathState(mx.PathStateConfig(allow_open=True, allow_new=True, allow_rename=True, extensions=[file_suffix], desc=f'*{file_suffix}'),
+                                     on_close=self._on_path_close,
+                                     on_open=self._on_path_open,
+                                     on_new=self._on_path_new,
+                                     on_rename=self._on_path_rename,
+                                     ).dispose_with(self)
+
         self._mx_load_progress = mx.Progress().dispose_with(self)
         self._mx_controls_bag = mx.Disposable().dispose_with(self)
 
@@ -82,13 +79,34 @@ class MxFileStateManager(mx.Disposable):
         self._tg = ax.TaskGroup().dispose_with(self)
         self._save_tg = ax.TaskGroup().dispose_with(self)
 
-        self._reload(state_path)
 
     def __dispose__(self):
+        self._mx_path.close()
+        super().__dispose__()
+
+    def _on_path_close(self):
+        self._tg.cancel_all()
+
         if self._mx_state.get() == MxFileStateManager.State.Initialized:
+            self._mx_state.set(MxFileStateManager.State.Uninitialized)
             if (on_close := self._on_close) is not None:
                 on_close()
-        super().__dispose__()
+
+        self._state_path = None
+
+    def _on_path_open(self, path : Path) -> bool:
+        self._state_path = path
+        self._reinitialize(path)
+        return True
+
+    def _on_path_new(self, path : Path) -> bool:
+        self._state_path = path
+        self._reinitialize()
+        return True
+
+    def _on_path_rename(self, path : Path) -> bool:
+        self._state_path = path
+        return True
 
     @property
     def mx_state(self) -> mx.IProperty_r[State]:
@@ -98,9 +116,9 @@ class MxFileStateManager(mx.Disposable):
         """Avail when .mx_state == Error"""
         return self._mx_error
     @property
-    def mx_load_menu(self) -> mx.IMenu[StatePath]|None:
-        """Avail when .mx_state >= Loading"""
-        return self._mx_load_menu
+    def mx_path(self) -> mx.IPathState:
+        return self._mx_path
+
     @property
     def mx_load_progress(self) -> mx.IProgress_r:
         """Avail when .mx_state == Loading"""
@@ -129,46 +147,23 @@ class MxFileStateManager(mx.Disposable):
     def mx_notes(self) -> mx.IText|None:
         """Avail when .mx_state == Initialized"""
         return self._mx_notes
-    
+
     def get_state_path(self) -> Path|None: return self._state_path
-    
-    @ax.task
-    def reset(self):
-        """Reload with default state."""
-        yield ax.wait(self._reload())
+
 
     @ax.task
-    def _reload(self, state_path : Path|None=None):
-        """
-        Reload from particular path.
-
-        if manager is loading already Task will be cancelled immediately
-        """
+    def _reinitialize(self, state_path : Path|None = None):
         yield ax.switch_to(self._main_thread)
-
-        if self._mx_state.get() == MxFileStateManager.State.Loading:
-            yield ax.cancel()
-
         yield ax.attach_to(self._tg, cancel_all=True)
-    
-        if self._mx_state.get() == MxFileStateManager.State.Initialized:
-            self._mx_state.set(MxFileStateManager.State.Uninitialized)
-            yield ax.sleep(0.1)
-            if (on_close := self._on_close) is not None:
-                on_close()
 
         self._mx_state.set(MxFileStateManager.State.Loading)
-
         self._mx_load_progress.start(50, 100)
-        
-        yield ax.sleep(1.0)
         self._mx_controls_bag = mx_controls_bag = self._mx_controls_bag.dispose_and_new()
-
-        err = None
 
         yield ax.switch_to(self._io_thread)
 
         state = {}
+        err = None
         if state_path is not None and state_path.exists():
             try:
                 with open(state_path, 'rb') as file:
@@ -176,6 +171,8 @@ class MxFileStateManager(mx.Disposable):
                 state = self._repack_traverse(state, is_pack=False)
             except Exception as e:
                 err = e
+
+        yield ax.switch_to(self._main_thread)
 
         if err is None:
             if (task_on_load := self._task_on_load) is not None:
@@ -186,13 +183,12 @@ class MxFileStateManager(mx.Disposable):
                     # raise unhandled developer error
                     raise load_t.error
 
-        yield ax.switch_to(self._main_thread)
-
         self._mx_load_progress.finish()
 
         if err is not None:
             self._mx_error.set(err)
             self._mx_state.set(MxFileStateManager.State.Error)
+            self._mx_path.close()
         else:
             self._last_save_time = time.time()
             self._last_backup_time = time.time()
@@ -200,7 +196,7 @@ class MxFileStateManager(mx.Disposable):
             self._mx_autobackup = mx.Number(state.get('autobackup', 0), config=mx.NumberConfig(min=0, max=3600), filter=self._flt_mx_autobackup).dispose_with(mx_controls_bag)
             self._mx_backup_count = mx.Number(state.get('backup_count', 8), config=mx.NumberConfig(min=1, max=32)).dispose_with(mx_controls_bag)
             self._mx_notes = mx.Text(state.get('notes', '')).dispose_with(mx_controls_bag)
-            
+
             self._mx_save_progress = mx.Progress().dispose_with(mx_controls_bag)
             self._mx_backup_progress = mx.Progress().dispose_with(mx_controls_bag)
 
@@ -233,7 +229,7 @@ class MxFileStateManager(mx.Disposable):
             yield ax.sleep(1)
 
     @ax.protected_task
-    def save(self, backup=False):
+    def save(self, as_name : str = None, backup=False):
         """
         Save task.
         Avail in state==Initialized, otherwise cancelled.
@@ -251,14 +247,19 @@ class MxFileStateManager(mx.Disposable):
             # Nothing to save
             yield ax.cancel()
 
+        root_path = self._state_path.parent
+        state_path = self._state_path
+        if as_name is not None:
+            state_path = root_path / f'{state_path.stem} — {as_name}.state'
+
+        state_path_part = state_path.parent / (state_path.name + '.part')
+
         self._last_save_time = time.time()
         self._mx_save_progress.start(0, 100)
 
         if backup:
             self._last_backup_time = self._last_save_time
             self._mx_backup_progress.start(0, 100)
-
-        yield ax.switch_to(self._io_thread)
 
         # Collect state
         user_state = {}
@@ -272,13 +273,14 @@ class MxFileStateManager(mx.Disposable):
                 # raise unhandled developer error
                 raise user_state_t.error
 
+        yield ax.switch_to(self._io_thread)
+
         state = {'user_state' : user_state,
                  'autosave' : self._mx_autosave.get(),
                  'autobackup' : self._mx_autobackup.get(),
                  'backup_count' : self._mx_backup_count.get(),
                  'notes' : self._mx_notes.get(),
                    }
-
 
         # Prepare state dump
         state = self._repack_traverse(state, is_pack=True)
@@ -292,14 +294,14 @@ class MxFileStateManager(mx.Disposable):
         err = None
         file = None
         try:
-            file = open(self._state_path_part, 'wb')
+            file = open(state_path_part, 'wb')
 
             for i in range(chunks_count):
                 chunk_end = min( (i+1)*mv_chunk_size, mv_size )
                 file.write( mv[i*mv_chunk_size: chunk_end])
                 file.flush()
                 os.fsync(file.fileno())
-            
+
                 yield ax.switch_to(self._main_thread)
 
                 self._mx_save_progress.progress( progress := min(99, int(i / (chunks_count-1)*100)) )
@@ -307,7 +309,7 @@ class MxFileStateManager(mx.Disposable):
 
                 yield ax.switch_to(self._io_thread)
 
-            
+
         except Exception as e:
             err = e
         finally:
@@ -315,15 +317,15 @@ class MxFileStateManager(mx.Disposable):
                 file.close()
                 file = None
             if err is not None:
-                if self._state_path_part.exists():
-                    self._state_path_part.unlink()
+                if state_path_part.exists():
+                    state_path_part.unlink()
 
         yield ax.switch_to(self._main_thread)
 
         if err is None:
-            if self._state_path.exists():
-                self._state_path.unlink()
-            self._state_path_part.rename(self._state_path)
+            if state_path.exists():
+                state_path.unlink()
+            state_path_part.rename(state_path)
 
             if backup:
                 try:
@@ -331,27 +333,27 @@ class MxFileStateManager(mx.Disposable):
 
                     backup_count = self._mx_backup_count.get()
 
-                    root_path, stem, suffix = self._root_path, self._stem, self._suffix
+
 
                     # Delete redundant backups
                     for filepath in lib_path.get_files_paths(root_path):
-                        if filepath.suffix == suffix:
-                            if len(splits := filepath.stem.split(f'{stem} — bckp — ')) == 2:
+                        if filepath.suffix == state_path.suffix:
+                            if len(splits := filepath.stem.split(f'{state_path.stem} — bckp — ')) == 2:
                                 backup_id = int(splits[1])
                                 if backup_id > backup_count:
                                     filepath.unlink()
 
                     # Renaming existing backups to free backup slot 01
                     for i in range(backup_count-1,0,-1):
-                        p1 = root_path / f'{stem} — bckp — {i:02}{suffix}'
-                        p2 = root_path / f'{stem} — bckp — {i+1:02}{suffix}'
+                        p1 = root_path / f'{state_path.stem} — bckp — {i:02}{state_path.suffix}'
+                        p2 = root_path / f'{state_path.stem} — bckp — {i+1:02}{state_path.suffix}'
                         if p2.exists():
                             p2.unlink()
                         if p1.exists():
                             p1.rename(p2)
 
                     # Copy saved state file to backup slot 01
-                    shutil.copy(self._state_path, root_path / f'{stem} — bckp — 01{suffix}')
+                    shutil.copy(state_path, root_path / f'{state_path.stem} — bckp — 01{state_path.suffix}')
 
                 except Exception as e:
                     err = e
@@ -378,7 +380,7 @@ class MxFileStateManager(mx.Disposable):
         # Like a copy, but traverse nested containers, checks and changes some types
 
         if isinstance(value, Path):
-            out_value = lib_path.relpath(value, self._cwd) if is_pack else lib_path.abspath(value, self._cwd)
+            out_value = lib_path.relpath(value, self._rel_path) if is_pack else lib_path.abspath(value, self._rel_path)
         elif isinstance(value, dict):
             out_value = { k : self._repack_traverse(v, is_pack=is_pack) for k, v in value.items() }
         elif isinstance(value, list):
@@ -395,17 +397,3 @@ class MxFileStateManager(mx.Disposable):
             raise ValueError(f'Value of type {type(value)} is not allowed. Use basic python types (include numpy types) and collections to save the data.')
 
         return out_value
-
-    class StatePath:
-        def __init__(self, path : Path):
-            self._path = path
-
-        @property
-        def path(self) -> Path: return self._path
-
-        def __eq__(self, o):
-            return self._path == o._path
-
-        def __repr__(self): return self.__str__()
-        def __str__(self):
-            return f"[{lib_path.creation_date(self._path).strftime('%Y.%m.%d %H:%M:%S')}] [{ self._path.stat().st_size // (1024**2) }Mb] {self._path.name} "

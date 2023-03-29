@@ -1,3 +1,4 @@
+import re
 from core import qt, qx
 
 from .MxFileStateManager import MxFileStateManager
@@ -18,24 +19,15 @@ class QxFileStateManager(qx.QVBox):
         holder.dispose_childs()
         holder_null_child = qx.QObject().set_parent(holder)
 
-        load_menu = qx.QMenuMxMenu(mgr.mx_load_menu).set_parent(holder).set_font(qx.Font.FixedWidth)
-        
         
         (holder
+            .add(qx.QMxPathState(mgr.mx_path))
             .add(qx.QHBox().set_spacing(1)
-                .add((grid_col := qx.QGrid().set_spacing(4).col(0)).grid())))
+                .add((grid_col := qx.QGrid().set_spacing(4).col(0)).grid(), align=qx.Align.CenterH ) ))
                     
         if state == MxFileStateManager.State.Loading:
             grid_col.add(qx.QProgressBarMxProgress(mgr.mx_load_progress))
-        elif state != MxFileStateManager.State.Uninitialized:
-            (grid_col       
-                    .add(qx.QPushButton().set_text('@(New)').inline(lambda btn: btn.mx_clicked.listen(lambda: mgr.reset())).v_compact())        
-                .next_col()
-                    .add(qx.QVBox()
-                            .add(load_btn := qx.QPushButton().set_text('@(Load)...').inline(lambda btn: btn.mx_clicked.listen(lambda: load_menu.show())).v_compact())
-                            .add(qx.QProgressBarMxProgress(mgr.mx_load_progress, hide_inactive=True))
-                            .inline(lambda _: mgr.mx_load_progress.mx_started.reflect(lambda started: load_btn.set_visible(not started)).dispose_with(holder_null_child)))
-                    .add(qx.QPathLabel(mgr.get_state_path()), align=qx.Align.TopE))            
+                
 
         if state == MxFileStateManager.State.Error:
             (holder
@@ -51,7 +43,7 @@ class QxFileStateManager(qx.QVBox):
         elif state == MxFileStateManager.State.Initialized:
             (grid_col.next_col()
                 .add(qx.QVBox()
-                    .add(save_btn := qx.QPushButton().set_text('@(Save)').inline(lambda btn: btn.mx_clicked.listen(lambda: mgr.save())))
+                    .add( save_btn := qx.QPushButton().set_text('@(Save)').inline(lambda btn: btn.mx_clicked.listen(lambda: mgr.save())))
                     .add(qx.QProgressBarMxProgress(mgr.mx_save_progress, hide_inactive=True))
                     .inline(lambda _: mgr.mx_save_progress.mx_started.reflect(lambda started: save_btn.set_visible(not started)).dispose_with(holder_null_child)))
                 .add(qx.QGrid().set_spacing(4).row(0)

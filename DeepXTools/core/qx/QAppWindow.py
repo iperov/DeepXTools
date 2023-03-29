@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..lib import os as lib_os
 from ..lx import allowed_langs
 from ._constants import Align, ProcessPriority
 from .QAction import QAction
@@ -27,6 +28,8 @@ class QAppWindow(QWindow):
         QAppWindow._instance = self
         super().__init__()
         
+        lib_os.hide_console_window()
+        
         app = QApplication.instance()
         self.set_parent(app)
         self.mx_close.listen(lambda _: app.quit())
@@ -46,6 +49,7 @@ class QAppWindow(QWindow):
 
                     .add(QAction().set_text('@(QAppWindow.Reset_UI_settings)').inline(lambda act: act.mx_triggered.listen(lambda: app.reset_settings())))
                     .add(QAction().set_text('@(QAppWindow.AsyncX_monitor)').inline(lambda act: act.mx_triggered.listen(lambda: self._on_open_ax_monitor())))
+                    .add(QAction().set_text('@(QAppWindow.Show_console)').inline(lambda act: act.mx_triggered.listen(lambda: lib_os.show_console_window())))
                     .add(QAction().set_text('@(QAppWindow.Quit)').inline(lambda act: act.mx_triggered.listen(lambda: app.quit()))))
 
             .add(QMenu().set_title('@(QAppWindow.Language)')

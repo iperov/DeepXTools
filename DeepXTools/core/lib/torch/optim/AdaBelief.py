@@ -21,7 +21,7 @@ class AdaBelief(Optimizer):
         # import code
         # code.interact(local=dict(globals(), **locals()))
     
-    def step(self, iteration : int = None, lr=1e-3, lr_dropout : float = 1.0):
+    def step(self, iteration : int = None, grad_mult : float = 1.0, lr=1e-3, lr_dropout : float = 1.0):
 
         for group in self.param_groups:
             for p in group['params']:
@@ -38,7 +38,10 @@ class AdaBelief(Optimizer):
                 else:
                     m_t = state['m_t']
                     v_t = state['v_t']
-
+                
+                if grad_mult != 1.0:
+                    grad = grad * grad_mult
+                    
                 m_t.mul_(beta1).add_(  grad           , alpha=1 - beta1)
                 v_t.mul_(beta2).add_( (grad - m_t)**2 , alpha=1 - beta2)
 

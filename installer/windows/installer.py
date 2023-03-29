@@ -511,8 +511,8 @@ def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cud
     data_dirpath = release_path / 'data'
     data_dirpath.mkdir(parents=True, exist_ok=True)
 
-    saves_dirpath = release_path / 'saves'
-    saves_dirpath.mkdir(parents=True, exist_ok=True)
+    save_dirpath = release_path / 'save'
+    save_dirpath.mkdir(parents=True, exist_ok=True)
 
     builder.create_run_python_script('MaskEditor.bat', 'repo\\DeepXTools\\main.py', 'run MaskEditor --ui-data-dir "%~dp0_internal"')
     builder.create_run_python_script('DeepRoto.bat', 'repo\\DeepXTools\\main.py', 'run DeepRoto  --ui-data-dir "%~dp0_internal"')

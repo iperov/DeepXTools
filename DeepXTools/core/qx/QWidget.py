@@ -21,6 +21,7 @@ class QWidget(QObject):
         self._mx_show = mx.Event1[qt.QShowEvent]().dispose_with(self)
         self._mx_hide = mx.Event1[qt.QHideEvent]().dispose_with(self)
         self._mx_close = mx.Event1[qt.QCloseEvent]().dispose_with(self)
+        self._mx_change = mx.Event1[qt.QEvent]().dispose_with(self)
         self._mx_resize = mx.Event1[qt.QResizeEvent]().dispose_with(self)
         self._mx_focus_in = mx.Event1[qt.QFocusEvent]().dispose_with(self)
         self._mx_focus_out = mx.Event1[qt.QFocusEvent]().dispose_with(self)
@@ -40,6 +41,7 @@ class QWidget(QObject):
         self._showEvent_wrap = QFuncWrap(q_widget, 'showEvent', lambda *args, **kwargs: self._show_event(*args, **kwargs)).dispose_with(self)
         self._hideEvent_wrap = QFuncWrap(q_widget, 'hideEvent', lambda *args, **kwargs: self._hide_event(*args, **kwargs)).dispose_with(self)
         self._closeEvent_wrap = QFuncWrap(q_widget, 'closeEvent', lambda *args, **kwargs: self._close_event(*args, **kwargs)).dispose_with(self)
+        self._changeEvent_wrap = QFuncWrap(q_widget, 'changeEvent', lambda *args, **kwargs: self._change_event(*args, **kwargs)).dispose_with(self)
         self._resizeEvent_wrap = QFuncWrap(q_widget, 'resizeEvent', lambda *args, **kwargs: self._resize_event(*args, **kwargs)).dispose_with(self)
         self._focusInEvent_wrap = QFuncWrap(q_widget, 'focusInEvent', lambda *args, **kwargs: self._focus_in_event(*args, **kwargs)).dispose_with(self)
         self._focusOutEvent_wrap = QFuncWrap(q_widget, 'focusOutEvent', lambda *args, **kwargs: self._focus_out_event(*args, **kwargs)).dispose_with(self)
@@ -53,7 +55,7 @@ class QWidget(QObject):
         self._mouseReleaseEvent_wrap = QFuncWrap(q_widget, 'mouseReleaseEvent', lambda *args, **kwargs: self._mouse_release_event(*args, **kwargs)).dispose_with(self)
         self._wheelEvent_wrap = QFuncWrap(q_widget, 'wheelEvent', lambda *args, **kwargs: self._wheel_event(*args, **kwargs)).dispose_with(self)
         self._paintEvent_wrap = QFuncWrap(q_widget, 'paintEvent', lambda *args, **kwargs: self._paint_event(*args, **kwargs)).dispose_with(self)
-        
+
         if not self._is_wrap_mode():
             self.h_normal()
             self.v_normal()
@@ -64,6 +66,8 @@ class QWidget(QObject):
     def mx_hide(self) -> mx.IEvent1_r[qt.QHideEvent]: return self._mx_hide
     @property
     def mx_close(self) -> mx.IEvent1_r[qt.QCloseEvent]: return self._mx_close
+    @property
+    def mx_change(self) -> mx.IEvent1_r[qt.QEvent]: return self._mx_change
     @property
     def mx_resize(self) -> mx.IEvent1_r[qt.QResizeEvent]: return self._mx_resize
     @property
@@ -240,6 +244,11 @@ class QWidget(QObject):
         """inheritable"""
         self._closeEvent_wrap.get_super()(ev)
         self._mx_close.emit(ev)
+
+    def _change_event(self, ev : qt.QEvent):
+        """inheritable"""
+        self._changeEvent_wrap.get_super()(ev)
+        self._mx_change.emit(ev)
 
     def _resize_event(self, ev : qt.QResizeEvent):
         """inheritable"""

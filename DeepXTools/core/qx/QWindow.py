@@ -46,6 +46,12 @@ class QWindow(QVBox):
     def set_window_flags(self, wnd_type : WindowType):
         self.get_q_widget().setWindowFlags(wnd_type)
         return self
+    
+    def show(self):
+        super().show()
+        if (window_state := self.__settings.get('windowState', None)) is not None:
+            self.get_q_widget().setWindowState(qt.Qt.WindowState(window_state))
+        
 
     def _event_filter(self, object: qt.QObject, ev: qt.QEvent) -> bool:
         r = super()._event_filter(object, ev)
@@ -71,20 +77,28 @@ class QWindow(QVBox):
             q_window.installEventFilter(self.get_q_object())
 
         super()._show_event(ev)
-        pos = self.__settings.get('geometry.pos', None)
-        size = self.__settings.get('geometry.size', (640,480))
-        if size is not None:
+        
+        v = self.get_q_widget().windowState()
+
+        if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowNoState and \
+            (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowNoState and \
+            (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:     
+            pos = self.__settings.get('geometry.pos', None)
+            size = self.__settings.get('geometry.size', None)
+            if size is None:
+                size = (640,480)
             self.get_q_widget().resize( qt.QSize(*size) )
 
-        if pos is not None:
-            self.get_q_widget().move( qt.QPoint(*pos) )
-        else:
-            # Center on screen
-            app : qt.QGuiApplication = qt.QApplication.instance()
-            screen_size = app.primaryScreen().size()
-            widget_width, widget_height = self.get_q_widget().size().width(), self.get_q_widget().size().height()
-            self.get_q_widget().move( (screen_size.width() - widget_width) // 2,  (screen_size.height() - widget_height) // 2 )
-
+            if pos is not None:
+                self.get_q_widget().move( qt.QPoint(*pos) )
+            else:
+                # Center on screen
+                app : qt.QGuiApplication = qt.QApplication.instance()
+                screen_size = app.primaryScreen().size()
+                widget_width, widget_height = self.get_q_widget().size().width(), self.get_q_widget().size().height()
+                self.get_q_widget().move( (screen_size.width() - widget_width) // 2,  (screen_size.height() - widget_height) // 2 )
+            
+            
     def _hide_event(self, ev: qt.QHideEvent):
         super()._hide_event(ev)
         if self.__q_window is not None:
@@ -94,10 +108,29 @@ class QWindow(QVBox):
     def _move_event(self, ev : qt.QMoveEvent):
         super()._move_event(ev)
         if self.is_visible():
-            self.__settings['geometry.pos'] = self.get_q_widget().pos().toTuple()
+            v = self.get_q_widget().windowState()
+            if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowNoState and \
+               (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowNoState and \
+               (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:     
+                self.__settings['geometry.pos'] = self.get_q_widget().pos().toTuple()
 
     def _resize_event(self, ev : qt.QResizeEvent):
         super()._resize_event(ev)
         if self.is_visible():
-            self.__settings['geometry.size'] = self.get_q_widget().size().toTuple()
+            v = self.get_q_widget().windowState()
+            if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowNoState and \
+               (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowNoState and \
+               (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:           
+                self.__settings['geometry.size'] = self.get_q_widget().size().toTuple()
 
+    def _change_event(self, ev: qt.QEvent):
+        super()._change_event(ev)
+        if ev.type() == qt.QEvent.Type.WindowStateChange:
+            v = self.get_q_widget().windowState()
+            self.__settings['windowState'] = v.value
+            if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowMaximized or \
+               (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowMinimized or \
+               (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowFullScreen:
+                self.__settings['geometry.pos'] = None
+                self.__settings['geometry.size'] = None
+            

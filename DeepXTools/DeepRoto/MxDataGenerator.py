@@ -77,9 +77,9 @@ class MxDataGenerator(mx.Disposable):
         self._mx_rnd_flip = mx.Flag( state.get('rnd_flip', default_rnd_flip) ).dispose_with(self)
 
         self._mx_transform_intensity = mx.Number(state.get('transform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
-        self._mx_image_deform_intensity = mx.Number(state.get('image_deform_intensity', 0.5), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
+        self._mx_image_deform_intensity = mx.Number(state.get('image_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
         self._mx_image_deform_intensity.listen(lambda v: self._mx_mask_deform_intensity.set(v) if self._mx_mask_deform_intensity.get() > v else ... )
-        self._mx_mask_deform_intensity = mx.Number(state.get('mask_deform_intensity', 0.5), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2), 
+        self._mx_mask_deform_intensity = mx.Number(state.get('mask_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2), 
                                                     filter=lambda n,o: min(n, self._mx_image_deform_intensity.get())  ).dispose_with(self)
         
         self._mx_rnd_levels_shift   = mx.Flag( state.get('rnd_levels_shift', False) ).dispose_with(self)

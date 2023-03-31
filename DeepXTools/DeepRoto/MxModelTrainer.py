@@ -28,8 +28,6 @@ class MxModelTrainer(mx.Disposable):
         self._mx_batch_size = mx.Number(state.get('batch_size', 4), config=mx.NumberConfig(min=1, max=64, step=1)).dispose_with(self)
         self._mx_batch_acc = mx.Number(state.get('batch_acc', 1), config=mx.NumberConfig(min=1, max=512, step=1)).dispose_with(self)
         self._mx_learning_rate = mx.Number(state.get('learning_rate', 250), config=mx.NumberConfig(min=1, max=1000, step=1)).dispose_with(self)
-        self._mx_train_encoder = mx.Flag(state.get('train_encoder', True)).dispose_with(self)
-        self._mx_train_decoder = mx.Flag(state.get('train_decoder', True)).dispose_with(self)
         
         self._mx_mse_power = mx.Number(state.get('mse_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
         self._mx_dssim_power = mx.Number(state.get('dssim_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
@@ -58,10 +56,6 @@ class MxModelTrainer(mx.Disposable):
     def mx_mse_power(self) -> mx.INumber: return self._mx_mse_power
     @property
     def mx_dssim_power(self) -> mx.INumber: return self._mx_dssim_power
-    @property
-    def mx_train_encoder(self) -> mx.IFlag: return self._mx_train_encoder
-    @property
-    def mx_train_decoder(self) -> mx.IFlag: return self._mx_train_decoder
     
     @property
     def mx_training(self) -> mx.IFlag_r:
@@ -86,8 +80,6 @@ class MxModelTrainer(mx.Disposable):
                 'learning_rate' : self._mx_learning_rate.get(),
                 'mse_power' : self._mx_mse_power.get(),
                 'dssim_power' : self._mx_dssim_power.get(),
-                'train_encoder' : self._mx_train_encoder.get(),
-                'train_decoder' : self._mx_train_decoder.get(),
                 'training' : self._mx_training.get(),
                 'metrics_graph_state' : metrics_graph_t.result,
                 }
@@ -121,8 +113,6 @@ class MxModelTrainer(mx.Disposable):
             batch_size = self._mx_batch_size.get()
             batch_acc = self._mx_batch_acc.get()
             lr = self._mx_learning_rate.get() * 1e-6
-            train_encoder = self._mx_train_encoder.get()
-            train_decoder = self._mx_train_decoder.get()
 
             mse_power = self._mx_mse_power.get()
             dssim_power = self._mx_dssim_power.get()
@@ -153,8 +143,6 @@ class MxModelTrainer(mx.Disposable):
                                                         dssim_x32_power=dssim_power,
                                                         batch_acc=batch_acc,
                                                         lr=lr,
-                                                        train_encoder=train_encoder,
-                                                        train_decoder=train_decoder, 
                                                         ))
 
             for t in training_tasks.fetch(succeeded=True):

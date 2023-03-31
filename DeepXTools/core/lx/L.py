@@ -369,7 +369,12 @@ _id_to_string_dict = {
         'en' : 'Apply settings',
         'ru' : 'Применить настройки',
     },
-
+    
+    'QxModel.Reset_model' : {
+        'en' : 'Reset model',
+        'ru' : 'Сбросить модель',
+    },
+    
     'QxModelTrainer.Batch_size' : {
         'en' : 'Batch size',
         'ru' : 'Размер батча',

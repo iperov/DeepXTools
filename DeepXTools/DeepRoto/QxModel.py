@@ -33,6 +33,9 @@ class QxModel(qx.QVBox):
                                 .next_row()
                                     .add(qx.QLabel().set_text('@(QxModel.Base_dimension)'), align=qx.Align.RightF)
                                     .add(qx.QDoubleSpinBoxMxNumber(model.mx_base_dim))
+                                .next_row()
+                                    .add(qx.QLabel().set_text('@(QxModel.UNet_mode)'), align=qx.Align.RightF)
+                                    .add(qx.QCheckBoxMxFlag(model.mx_unet_mode))
                                 .grid()
                                 , align=qx.Align.CenterH)
                         .add(qx.QHBox()
@@ -41,7 +44,6 @@ class QxModel(qx.QVBox):
                         , align=qx.Align.CenterH)
 
                     .add(qx.QHBox()
-                        .add(qx.QPushButton().set_text('@(Reset) Encoder').inline(lambda btn: btn.mx_clicked.listen(lambda: model.reset_encoder())))
-                        .add(qx.QPushButton().set_text('@(Reset) Decoder').inline(lambda btn: btn.mx_clicked.listen(lambda: model.reset_decoder())))
+                        .add(qx.QPushButton().set_text('@(QxModel.Reset_model)').inline(lambda btn: btn.mx_clicked.listen(lambda: model.reset_model())))
                         , align=qx.Align.CenterH)
                     , align=qx.Align.CenterH) )

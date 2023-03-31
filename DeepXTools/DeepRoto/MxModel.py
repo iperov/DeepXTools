@@ -16,7 +16,7 @@ from core.lib.image import NPImage
 from core.lib.torch import functional as xF
 from core.lib.torch.modules import BlurPool
 from core.lib.torch.optim import AdaBelief, Optimizer
-
+from core.lib.torch.init import xavier_uniform
 
 class MxModel(mx.Disposable):
     @dataclass
@@ -46,26 +46,26 @@ class MxModel(mx.Disposable):
         self._prepare_thread_pool = ax.ThreadPool(name='prepare_thread_pool').dispose_with(self)
         self._model_thread = ax.Thread('model_thread').dispose_with(self)
 
-
         # Model variables. Changed in _model_thread.
         self._device     = lib_torch.DeviceRef.from_state(state.get('device_state', None))
         self._input_type = MxModel.InputType(state.get('input_type', MxModel.InputType.Luminance.value))
         self._resolution = state.get('resolution', 256)
         self._base_dim   = state.get('base_dim', 32)
+        self._unet_mode  = state.get('unet_mode', True)
         self._iteration  = state.get('iteration', 0)
         self._opt_class = AdaBelief
-
 
         self._mx_device = mx.SingleChoice[lib_torch.DeviceRef](self._device,
                                                                avail=lambda: [lib_torch.get_cpu_device()]+lib_torch.get_avail_gpu_devices()).dispose_with(self)
         self._mx_input_type = mx.SingleChoice[MxModel.InputType](self._input_type, avail=lambda: [*MxModel.InputType]).dispose_with(self)
         self._mx_resolution = mx.Number(self._resolution, config=mx.NumberConfig(min=64, max=1024, step=64)).dispose_with(self)
         self._mx_base_dim   = mx.Number(self._base_dim, config=mx.NumberConfig(min=16, max=256, step=8)).dispose_with(self)
+        self._mx_unet_mode = mx.Flag(self._unet_mode).dispose_with(self)
 
         self._mod = lib_torch.ModulesOnDemand(  {'encoder': lambda mod: Encoder(resolution=self._resolution, in_ch=1 if self._input_type == MxModel.InputType.Luminance else 3, base_dim=self._base_dim),
                                                  'encoder_opt': lambda mod: self._opt_class(mod.get_module('encoder').parameters()),
 
-                                                 'decoder': lambda mod: Decoder(out_ch=1, base_dim=self._base_dim),
+                                                 'decoder': lambda mod: Decoder(out_ch=1, base_dim=self._base_dim, unet_mode=self._unet_mode),
                                                  'decoder_opt': lambda mod: self._opt_class(mod.get_module('decoder').parameters()),
                                                 },
                                                 state=state.get('mm_state', None) ).dispose_with(self)
@@ -82,6 +82,9 @@ class MxModel(mx.Disposable):
     @property
     def mx_base_dim(self) -> mx.INumber:
         return self._mx_base_dim
+    @property
+    def mx_unet_mode(self) -> mx.IFlag:
+        return self._mx_unet_mode
 
     def get_input_resolution(self) -> int: return self._resolution
     def get_input_ch(self) -> int: return 1 if self._input_type == MxModel.InputType.Luminance else 3
@@ -92,26 +95,22 @@ class MxModel(mx.Disposable):
         yield ax.switch_to(self._model_thread)
 
         return {'device_state' : self._device.get_state(),
-                'input_type' : self._input_type.value,
-                'resolution' : self._resolution,
-                'base_dim' : self._base_dim,
-                'iteration' : self._iteration,
-                'mm_state' : self._mod.get_state(), }
+                'input_type'   : self._input_type.value,
+                'resolution'   : self._resolution,
+                'base_dim'     : self._base_dim,
+                'unet_mode'    : self._unet_mode,
+                'iteration'    : self._iteration,
+                'mm_state'     : self._mod.get_state(), }
 
     @ax.task
-    def reset_encoder(self):
+    def reset_model(self):
         yield ax.attach_to(self._tg)
         yield ax.switch_to(self._model_thread)
         self._mod.reset_module('encoder')
         self._mod.reset_module('encoder_opt')
-
-    @ax.task
-    def reset_decoder(self):
-        yield ax.attach_to(self._tg)
-        yield ax.switch_to(self._model_thread)
         self._mod.reset_module('decoder')
         self._mod.reset_module('decoder_opt')
-
+        
     @ax.task
     def apply_model_settings(self):
         """Apply mx model settings to actual model."""
@@ -122,6 +121,7 @@ class MxModel(mx.Disposable):
         new_input_type     = self._mx_input_type.get()
         new_resolution     = self._mx_resolution.get()
         new_base_dim       = self._mx_base_dim.get()
+        new_unet_mode      = self._mx_unet_mode.get()
 
         yield ax.switch_to(self._model_thread)
 
@@ -131,6 +131,7 @@ class MxModel(mx.Disposable):
         input_type, self._input_type = self._input_type, new_input_type
         resolution, self._resolution = self._resolution, new_resolution
         base_dim, self._base_dim = self._base_dim, new_base_dim
+        unet_mode, self._unet_mode = self._unet_mode, new_unet_mode
 
         reset_encoder    = (resolution != new_resolution or base_dim != new_base_dim) or (input_type != new_input_type)
         reset_decoder    = (resolution != new_resolution or base_dim != new_base_dim)
@@ -141,6 +142,10 @@ class MxModel(mx.Disposable):
         if reset_decoder:
             mod.reset_module('decoder')
             mod.reset_module('decoder_opt')
+
+        if unet_mode != new_unet_mode:
+            decoder : Decoder = self._mod.get_module('decoder')
+            decoder.set_unet_mode(new_unet_mode)
 
         if reset_encoder or reset_decoder:
             torch.cuda.empty_cache()
@@ -155,13 +160,15 @@ class MxModel(mx.Disposable):
         input_type  = self._input_type
         resolution  = self._resolution
         base_dim    = self._base_dim
-
+        unet_mode   = self._unet_mode
+        
         yield ax.switch_to(self._main_thread)
 
         self._mx_device.set(device_info)
         self._mx_input_type.set(input_type)
         self._mx_resolution.set(resolution)
         self._mx_base_dim.set(base_dim)
+        self._mx_unet_mode.set(unet_mode)
 
     @ax.task
     def infer(self, image_np : List[NPImage]) -> InferResult:
@@ -200,8 +207,8 @@ class MxModel(mx.Disposable):
             decoder : Decoder = self._mod.get_module('decoder', device=device, train=False)
 
             with torch.no_grad():
-                skips, x = encoder(input_t)
-                pred_mask_t = decoder(skips, x) / 2.0 + 0.5
+                shortcuts, x = encoder(input_t)
+                pred_mask_t = decoder(shortcuts, x) / 2.0 + 0.5
 
             pred_mask_nd = pred_mask_t.detach().cpu().numpy()
 
@@ -284,8 +291,8 @@ class MxModel(mx.Disposable):
                     decoder_opt.zero_grad()
 
             #with torch.autocast(device.backend):
-            skips, x = encoder(input_t)
-            pred_mask_t = decoder(skips, x)
+            shortcuts, x = encoder(input_t)
+            pred_mask_t = decoder(shortcuts, x)
             _, _, H, W = pred_mask_t.shape
 
             # Collect losses
@@ -373,6 +380,7 @@ class Encoder(nn.Module):
         self._conv_list = nn.ModuleList(conv_list)
         self._bp_list = nn.ModuleList(bp_list)
 
+        xavier_uniform(self)
 
     def get_out_resolution(self) -> int:
         return self._resolution // (2**self._n_downs)
@@ -384,20 +392,20 @@ class Encoder(nn.Module):
         x = x * self._in_gamma[None,:,None,None]
         x = self._in(x)
 
-        skips = []
+        shortcuts = []
         for conv, bp in zip(self._conv_list, self._bp_list):
             x = F.leaky_relu(conv(x), 0.1)
             x = bp(x)
-            skips.insert(0, x)
+            shortcuts.insert(0, x)
 
-        return skips, x
-
+        return shortcuts, x
 
 
 class Decoder(nn.Module):
-    def __init__(self, out_ch, base_dim=32, n_downs=6):
+    def __init__(self, out_ch, base_dim=32, n_downs=6, unet_mode=True):
         super().__init__()
         self._n_downs = n_downs
+        self._unet_mode = unet_mode
 
         conv_s1_list = []
         conv_s2_list = []
@@ -423,11 +431,23 @@ class Decoder(nn.Module):
         self._out_gamma = nn.parameter.Parameter( torch.ones(out_ch,), requires_grad=True)
         self._out_beta = nn.parameter.Parameter( torch.zeros(out_ch,), requires_grad=True)
 
+        xavier_uniform(self)
 
-    def forward(self, skips : List[torch.Tensor], x):
+    def set_unet_mode(self, unet_mode : bool):
+        if self._unet_mode != unet_mode:
+            self._unet_mode = unet_mode
+            if unet_mode:
+                # Reset shortcuts
+                xavier_uniform(self._conv_s1_list)
+                xavier_uniform(self._conv_s2_list)
 
-        for skip_x, s1, s2, r, c, in zip(skips, self._conv_s1_list, self._conv_s2_list, self._conv_r_list, self._conv_c_list):
-            x = F.leaky_relu(x + r(x) + s2(F.leaky_relu(s1(skip_x), 0.2)) , 0.2)
+    def forward(self, shortcuts : List[torch.Tensor], x):
+
+        for shortcut_x, s1, s2, r, c, in zip(shortcuts, self._conv_s1_list, self._conv_s2_list, self._conv_r_list, self._conv_c_list):
+            x = x + r(x)
+            if self._unet_mode:
+                x = x + s2(F.leaky_relu(s1(shortcut_x), 0.2))
+            x = F.leaky_relu(x, 0.2)
             x = F.leaky_relu(c(x), 0.1)
             x = F.pixel_shuffle(x, 2)
 

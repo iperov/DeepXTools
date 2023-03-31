@@ -11,13 +11,6 @@ class QxModelTrainer(qx.QVBox):
 
         (self
             .add(qx.QMsgNotifyMxTextEmitter(trainer.mx_error).set_title("<span style='color: red;'>@(Error)</span>"))
-            
-            .add(qx.QHBox()
-                    .add(qx.QCheckBoxMxFlag(trainer.mx_train_encoder).set_text('@(Train) Encoder'))
-                    .add(qx.QCheckBoxMxFlag(trainer.mx_train_decoder).set_text('@(Train) Decoder'))
-                , align=qx.Align.CenterF)
-            
-            .add_spacer(8)    
                 
             .add(qx.QHBox().set_spacing(8)
              

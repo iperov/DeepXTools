@@ -1,1 +1,1 @@
-from .xavier import init_with_xavier_uniform
+from .xavier import xavier_uniform

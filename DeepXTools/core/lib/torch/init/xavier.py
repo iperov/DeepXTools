@@ -1,7 +1,12 @@
 import torch
 import torch.nn as nn
 
-def init_with_xavier_uniform(module : nn.Module):
+def xavier_uniform(module : nn.Module):
+    """
+    init module and all submodules with Xavier Uniform
+    
+    supported modules: nn.Conv2d, nn.Linear
+    """
     for m in module.modules():
         if isinstance(m, (nn.Conv2d, nn.Linear) ):
             nn.init.xavier_uniform_(m.weight)

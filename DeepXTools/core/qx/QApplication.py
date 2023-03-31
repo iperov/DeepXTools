@@ -121,6 +121,7 @@ class QApplication(QObject):
 
     def reset_settings(self):
         self.__settings = {}
+        self._deferred_save_settings()
 
     def set_override_cursor(self, cursor : qt.QCursor | qt.Qt.CursorShape):
         if isinstance(cursor, qt.QCursor):

@@ -127,8 +127,8 @@ _id_to_string_dict = {
     },
 
     'QAppWindow.Reset_UI_settings':{
-        'en' : 'Reset UI settings',
-        'ru' : 'Сброс настроек интерфейса',
+        'en' : 'Reset UI settings (requires restart)',
+        'ru' : 'Сброс настроек интерфейса (требуется перезапуск)',
     },
 
     'QAppWindow.AsyncX_monitor':{

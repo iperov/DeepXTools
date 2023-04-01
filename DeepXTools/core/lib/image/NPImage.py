@@ -8,7 +8,7 @@ from __future__ import annotations
 import functools
 from enum import Enum, auto
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import Callable, List, Sequence, Tuple
 
 import cv2
 import numba as nb
@@ -394,6 +394,14 @@ class NPImage:
             raise Exception('C must be == 3')
 
         return NPImage( _nb_hsv_shift(img.copy(), h_offset, s_offset, v_offset, u8=img.dtype==np.uint8) )
+
+    def pad(self, pads : Sequence[int]) -> NPImage:
+        """```
+        pads per HWC axes
+        
+        ( (PADT,PADB), (PADL, PADR), (PADC_before, PADC_after) )
+        ```"""
+        return NPImage(np.pad(self._img, pads))
 
     def resize(self, OW : int, OH : int, interp : Interp = Interp.LINEAR) -> NPImage:
         """resize to (OW,OH)"""

@@ -9,15 +9,26 @@ class Patcher:
     """
     a class to cut and merge patches of image
     """
-    def __init__(self, img : NPImage, PW, PH = None, sample_count=1):
+    def __init__(self, img : NPImage, PW, PH = None, sample_count=1, use_padding=False):
         if PH is None:
             PH = PW
+            
+        self._use_padding = use_padding
+        if use_padding:
+            PADL = self._PADL = math.ceil(PW / 2)
+            PADR = self._PADR = math.floor(PW / 2)
+            PADT = self._PADT = math.ceil(PH / 2)
+            PADB = self._PADB = math.floor(PH / 2)
+            
+            img = img.pad( ((PADT, PADB), (PADL, PADR), (0,0)))
+            
         self._img = img.HWC()
         self._pw = PW
         self._ph = PH
+        
 
         H,W,C = img.shape
-        if H < PH or W < PW:
+        if not use_padding and (H < PH or W < PW):
             raise ValueError('Image size less than patch size.')
 
         x_stride = max(1, PW // 2**(sample_count-1) )
@@ -32,8 +43,7 @@ class Patcher:
         self._weight_patch = Patcher._get_weight_patch(PW, PH)[...,None]
         self._img_weight = np.zeros( (H,W,1), np.float32 )
         self._img_out = np.zeros( (H,W,C), np.float32 )
-
-
+        
     @property
     def patch_count(self) -> int:
         return self._ys_count*self._xs_count
@@ -68,6 +78,9 @@ class Patcher:
 
         # Normalize image by weights
         img = self._img_out * (1 / img_weight)
+        
+        if self._use_padding:
+            img = img[self._PADT:-self._PADB, self._PADL:-self._PADR, :]
 
         return NPImage(img)
 

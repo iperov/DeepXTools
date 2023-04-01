@@ -79,7 +79,6 @@ class QWindow(QVBox):
         super()._show_event(ev)
         
         v = self.get_q_widget().windowState()
-
         if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowNoState and \
             (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowNoState and \
             (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:     
@@ -126,10 +125,10 @@ class QWindow(QVBox):
     def _change_event(self, ev: qt.QEvent):
         super()._change_event(ev)
         if ev.type() == qt.QEvent.Type.WindowStateChange:
+            
             v = self.get_q_widget().windowState()
             self.__settings['windowState'] = v.value
             if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowMaximized or \
-               (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowMinimized or \
                (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowFullScreen:
                 self.__settings['geometry.pos'] = None
                 self.__settings['geometry.size'] = None

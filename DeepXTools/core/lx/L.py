@@ -43,7 +43,17 @@ _id_to_string_dict = {
         'en' : 'Error',
         'ru' : 'Ошибка',
     },
-
+    
+    'Success':{
+        'en' : 'Success',
+        'ru' : 'Успешно',
+    },
+    
+    'Info':{
+        'en' : 'Info',
+        'ru' : 'Инфо',
+    },
+    
     'Ok':{
         'en' : 'Ok',
         'ru' : 'Ок',
@@ -324,7 +334,22 @@ _id_to_string_dict = {
         'en' : 'Mask',
         'ru' : 'Маска',
     },
-
+    
+    'MxModel.Exporting_model_to' : {
+        'en' : 'Exporting model to',
+        'ru' : 'Экспортируем модель в',
+    },
+    
+    'MxModel.Importing_model_from' : {
+        'en' : 'Importing model from',
+        'ru' : 'Импортируем модель из',
+    },
+    
+    'MxModel.Downloading_model_from' : {
+        'en' : 'Downloading model from',
+        'ru' : 'Скачиваем модель из',
+    },
+    
     'QxModel.Device' : {
         'en' : 'Device',
         'ru' : 'Устройство',
@@ -373,6 +398,21 @@ _id_to_string_dict = {
     'QxModel.Reset_model' : {
         'en' : 'Reset model',
         'ru' : 'Сбросить модель',
+    },
+    
+    'QxModel.Import_model' : {
+        'en' : 'Import model',
+        'ru' : 'Импорт модели',
+    },
+    
+    'QxModel.Export_model' : {
+        'en' : 'Export model',
+        'ru' : 'Экспорт модели',
+    },
+    
+    'QxModel.Download_pretrained_model' : {
+        'en' : 'Download pretrained model',
+        'ru' : 'Скачать предтренированную модель',
     },
     
     'QxModelTrainer.Batch_size' : {
@@ -444,7 +484,12 @@ _id_to_string_dict = {
         'en' : 'Sample count',
         'ru' : 'Кол-во семплов',
     },
-
+    
+    'QxExport.Fix_borders' : {
+        'en' : 'Fix borders',
+        'ru' : 'Фикс границ',
+    },
+    
     'QxPreview.Source' : {
         'en' : 'Source',
         'ru' : 'Источник',
@@ -479,7 +524,12 @@ _id_to_string_dict = {
         'en' : 'Sample count',
         'ru' : 'Кол-во семплов',
     },
-
+    
+    'QxPreview.Fix_borders' : {
+        'en' : 'Fix borders',
+        'ru' : 'Фикс границ',
+    },
+    
     'QxPreview.Target_mask' : {
         'en' : 'Target mask',
         'ru' : 'Целевая маска',

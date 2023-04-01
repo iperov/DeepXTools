@@ -59,7 +59,9 @@ class QxPreview(qx.QVBox):
         if patch_mode:
             holder.add( qx.QHBox()
                             .add(qx.QLabel().set_text('@(QxPreview.Sample_count)'))
-                            .add(qx.QDoubleSpinBoxMxNumber(self._preview.mx_sample_count)))
+                            .add(qx.QDoubleSpinBoxMxNumber(self._preview.mx_sample_count))
+                            .add_spacer(4)
+                            .add( qx.QCheckBoxMxFlag(self._preview.mx_fix_borders).set_text('@(QxPreview.Fix_borders)')))
 
     def _ref_sample(self, sample : MxPreview.Sample|None, holder : qx.QHBox ):
 

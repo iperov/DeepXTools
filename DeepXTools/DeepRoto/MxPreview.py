@@ -101,6 +101,10 @@ class MxPreview(mx.Disposable):
     def mx_sample_count(self) -> mx.INumber:
         """Avail when mx_patch_mode == True"""
         return self._mx_sample_count
+    @property
+    def mx_fix_borders(self) -> mx.IFlag:
+        """Avail when mx_patch_mode == True"""
+        return self._mx_fix_borders
 
     @ax.task
     def generate_one(self):
@@ -174,7 +178,10 @@ class MxPreview(mx.Disposable):
 
         self._mx_sample_count = mx.Number(self._state['directory_state'].get('sample_count', 2), mx.NumberConfig(min=1, max=4)).dispose_with(self._directory_disp_bag)
         self._mx_sample_count.listen(lambda _: self._infer_directory_sample())
-
+        
+        self._mx_fix_borders = mx.Flag(self._state['directory_state'].get('fix_borders', False)).dispose_with(self._directory_disp_bag)
+        self._mx_fix_borders.listen(lambda _: self._infer_directory_sample())
+        
         self._infer_directory_sample()
 
         return True
@@ -190,6 +197,7 @@ class MxPreview(mx.Disposable):
         idx = self._mx_directory_image_idx.get()
         patch_mode = self._mx_patch_mode.get()
         sample_count = self._mx_sample_count.get()
+        fix_borders = self._mx_fix_borders.get()
 
         model = self._model
         imagepath = self._imagespaths[idx]
@@ -207,7 +215,7 @@ class MxPreview(mx.Disposable):
         if err is None:
 
             if patch_mode:
-                patcher = Patcher(image_np, model.get_input_resolution(), sample_count=sample_count)
+                patcher = Patcher(image_np, model.get_input_resolution(), sample_count=sample_count, use_padding=fix_borders)
 
                 for i in range(patcher.patch_count):
                     yield ax.wait(t := model.infer([patcher.get_patch(i)]))
@@ -256,5 +264,6 @@ class MxPreview(mx.Disposable):
                 d['directory_state']['directory_image_idx'] = self._mx_directory_image_idx.get()
                 d['directory_state']['patch_mode'] = self._mx_patch_mode.get()
                 d['directory_state']['sample_count'] = self._mx_sample_count.get()
+                d['directory_state']['fix_borders'] = self._mx_fix_borders.get()
         return d
 

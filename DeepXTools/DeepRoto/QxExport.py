@@ -54,4 +54,7 @@ class QxExport(qx.QVBox):
         if patch_mode:
             holder.add( qx.QHBox()
                             .add(qx.QLabel().set_text('@(QxExport.Sample_count)'))
-                            .add(qx.QDoubleSpinBoxMxNumber(self._export.mx_sample_count)))
+                            .add(qx.QDoubleSpinBoxMxNumber(self._export.mx_sample_count))
+                            .add_spacer(4)
+                            .add(qx.QCheckBoxMxFlag(self._export.mx_fix_borders).set_text('@(QxExport.Fix_borders)'))
+                            )

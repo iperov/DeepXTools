@@ -30,6 +30,7 @@ class MxExport(mx.Disposable):
 
         self._mx_patch_mode = mx.Flag(state.get('patch_mode', False)).dispose_with(self)
         self._mx_sample_count = mx.Number(state.get('sample_count', 2), mx.NumberConfig(min=1, max=4)).dispose_with(self)
+        self._mx_fix_borders = mx.Flag(state.get('fix_borders', False)).dispose_with(self)
 
         if (input_path := state.get('input_path', None)) is not None:
             self._mx_input_path.open(input_path)
@@ -57,7 +58,10 @@ class MxExport(mx.Disposable):
     @property
     def mx_sample_count(self) -> mx.INumber:
         return self._mx_sample_count
-
+    @property
+    def mx_fix_borders(self) -> mx.IFlag:
+        return self._mx_fix_borders
+    
     def _on_input_path_open(self, path : Path):
         self._mx_output_path.new( path.parent / (path.name + '_trained_mask') )
         return path
@@ -65,6 +69,7 @@ class MxExport(mx.Disposable):
     def get_state(self) -> dict:
         return {'patch_mode' : self._mx_patch_mode.get(),
                 'sample_count' : self._mx_sample_count.get(),
+                'fix_borders' : self._mx_fix_borders.get(),
                 'input_path' : self._mx_input_path.mx_path.get(),
                 'output_path' : self._mx_output_path.mx_path.get(),
                 }
@@ -161,7 +166,8 @@ class MxExport(mx.Disposable):
         patch_mode = self._mx_patch_mode.get()
         if patch_mode:
             sample_count = self._mx_sample_count.get()
-
+            fix_borders = self._mx_fix_borders.get()
+            
         yield ax.switch_to(self._export_thread_pool)
 
         err = None
@@ -175,7 +181,7 @@ class MxExport(mx.Disposable):
                 H, W, _ = image_np.shape
                 if H >= model_res and W >= model_res:
 
-                    patcher = Patcher(image_np, model_res, sample_count=sample_count)
+                    patcher = Patcher(image_np, model_res, sample_count=sample_count, use_padding=fix_borders)
                     for i in range(patcher.patch_count):
                         yield ax.wait(t := model.infer([patcher.get_patch(i)]))
 

@@ -1,5 +1,11 @@
+import io
+import itertools
+import pickle
+import ssl
+import urllib.request
 from dataclasses import dataclass
 from enum import Enum, auto
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -14,10 +20,11 @@ from core.lib import time as lib_time
 from core.lib import torch as lib_torch
 from core.lib.image import NPImage
 from core.lib.torch import functional as xF
+from core.lib.torch.init import xavier_uniform
 from core.lib.torch.modules import BlurPool
 from core.lib.torch.optim import AdaBelief, Optimizer
-from core.lib.torch.init import xavier_uniform
 
+        
 class MxModel(mx.Disposable):
     @dataclass
     class InferResult:
@@ -43,6 +50,7 @@ class MxModel(mx.Disposable):
 
         self._tg = ax.TaskGroup().dispose_with(self)
         self._main_thread = ax.get_current_thread()
+        self._io_thread = ax.Thread('io_thread').dispose_with(self)
         self._prepare_thread_pool = ax.ThreadPool(name='prepare_thread_pool').dispose_with(self)
         self._model_thread = ax.Thread('model_thread').dispose_with(self)
 
@@ -54,13 +62,17 @@ class MxModel(mx.Disposable):
         self._unet_mode  = state.get('unet_mode', True)
         self._iteration  = state.get('iteration', 0)
         self._opt_class = AdaBelief
-
+        
+        self._mx_info = mx.TextEmitter().dispose_with(self)
         self._mx_device = mx.SingleChoice[lib_torch.DeviceRef](self._device,
                                                                avail=lambda: [lib_torch.get_cpu_device()]+lib_torch.get_avail_gpu_devices()).dispose_with(self)
         self._mx_input_type = mx.SingleChoice[MxModel.InputType](self._input_type, avail=lambda: [*MxModel.InputType]).dispose_with(self)
         self._mx_resolution = mx.Number(self._resolution, config=mx.NumberConfig(min=64, max=1024, step=64)).dispose_with(self)
         self._mx_base_dim   = mx.Number(self._base_dim, config=mx.NumberConfig(min=16, max=256, step=8)).dispose_with(self)
         self._mx_unet_mode = mx.Flag(self._unet_mode).dispose_with(self)
+        self._mx_url_download_menu = mx.Menu[str](avail_choices=lambda: ['https://github.com/iperov/DeepXTools/releases/download/DXRM_0/Luminance_256_32_UNet_from_ImageNet.dxrm'], 
+                                         on_choose=lambda x: self._download_model_state(x)
+                                         ).dispose_with(self)
 
         self._mod = lib_torch.ModulesOnDemand(  {'encoder': lambda mod: Encoder(resolution=self._resolution, in_ch=1 if self._input_type == MxModel.InputType.Luminance else 3, base_dim=self._base_dim),
                                                  'encoder_opt': lambda mod: self._opt_class(mod.get_module('encoder').parameters()),
@@ -69,7 +81,8 @@ class MxModel(mx.Disposable):
                                                  'decoder_opt': lambda mod: self._opt_class(mod.get_module('decoder').parameters()),
                                                 },
                                                 state=state.get('mm_state', None) ).dispose_with(self)
-
+    @property
+    def mx_info(self) -> mx.ITextEmitter_r: return self._mx_info
     @property
     def mx_device(self) -> mx.ISingleChoice[lib_torch.DeviceRef]:
         return self._mx_device
@@ -85,32 +98,30 @@ class MxModel(mx.Disposable):
     @property
     def mx_unet_mode(self) -> mx.IFlag:
         return self._mx_unet_mode
-
-    def get_input_resolution(self) -> int: return self._resolution
-    def get_input_ch(self) -> int: return 1 if self._input_type == MxModel.InputType.Luminance else 3
-
+    @property
+    def mx_url_download_menu(self) -> mx.IMenu[str]:
+        return self._mx_url_download_menu
+    
     @ax.task
     def get_state(self) -> dict:
         yield ax.attach_to(self._tg)
         yield ax.switch_to(self._model_thread)
 
         return {'device_state' : self._device.get_state(),
-                'input_type'   : self._input_type.value,
+                'iteration'    : self._iteration } | self._get_model_state()
+    
+    def _get_model_state(self) -> dict:
+        self._model_thread.assert_current_thread()
+        
+        return {'input_type'   : self._input_type.value,
                 'resolution'   : self._resolution,
                 'base_dim'     : self._base_dim,
                 'unet_mode'    : self._unet_mode,
-                'iteration'    : self._iteration,
                 'mm_state'     : self._mod.get_state(), }
-
-    @ax.task
-    def reset_model(self):
-        yield ax.attach_to(self._tg)
-        yield ax.switch_to(self._model_thread)
-        self._mod.reset_module('encoder')
-        self._mod.reset_module('encoder_opt')
-        self._mod.reset_module('decoder')
-        self._mod.reset_module('decoder_opt')
-        
+    
+    def get_input_resolution(self) -> int: return self._resolution
+    def get_input_ch(self) -> int: return 1 if self._input_type == MxModel.InputType.Luminance else 3
+    
     @ax.task
     def apply_model_settings(self):
         """Apply mx model settings to actual model."""
@@ -169,7 +180,153 @@ class MxModel(mx.Disposable):
         self._mx_resolution.set(resolution)
         self._mx_base_dim.set(base_dim)
         self._mx_unet_mode.set(unet_mode)
+        
+    ######################################
+    ### RESET / IMPORT / EXPORT / DOWNLOAD
+    ######################################
+    @ax.task
+    def reset_model(self):
+        yield ax.attach_to(self._tg)
+        yield ax.switch_to(self._model_thread)
+        self._mod.reset_module('encoder')
+        self._mod.reset_module('encoder_opt')
+        self._mod.reset_module('decoder')
+        self._mod.reset_module('decoder_opt')
+    
+    
+    @ax.task
+    def import_model(self, filepath : Path):
+        yield ax.attach_to(self._tg)
+        yield ax.switch_to(self._main_thread)
+        
+        self._mx_info.emit(f'@(MxModel.Importing_model_from) {filepath} ...')
+        
+        yield ax.switch_to(self._model_thread)
+        
+        err = None
+        try:
+            model_state = pickle.loads(filepath.read_bytes())
+        except Exception as e:
+            err = e
 
+        if err is None:        
+            yield ax.wait(t := self._import_model_state(model_state))
+            if not t.succeeded:
+                err = t.error
+                if err is None:
+                    err = Exception('Unknown')
+            
+        yield ax.switch_to(self._main_thread)
+            
+        if err is not None:
+            self._mx_info.emit(f'@(Error): {err}')
+            yield ax.cancel(err)
+        else:
+            self._mx_info.emit(f'@(Success).')
+        
+    @ax.task
+    def _import_model_state(self, model_state : dict):
+        yield ax.attach_to(self._tg)
+        yield ax.switch_to(self._model_thread)
+        
+        err = None
+        try:
+            input_type = MxModel.InputType(model_state['input_type'])
+            resolution = model_state['resolution']
+            base_dim   = model_state['base_dim']
+            unet_mode  = model_state['unet_mode']
+            mm_state   = model_state['mm_state']
+        except Exception as e:
+            err = e
+            
+        if err is None:
+            self._input_type = input_type
+            self._resolution = resolution
+            self._base_dim = base_dim
+            self._unet_mode = unet_mode
+            self._mod.set_state(mm_state)
+            yield ax.wait(self.revert_model_settings())
+    
+        if err is not None:
+            yield ax.cancel(err)
+    
+    @ax.task
+    def _download_model_state(self, url : str):
+        yield ax.attach_to(self._tg)
+        yield ax.switch_to(self._main_thread)
+        
+        self._mx_info.emit(f'@(MxModel.Downloading_model_from) {url} ...')
+        
+        yield ax.switch_to(self._io_thread)
+        
+        err = None
+        try:
+            url_request = urllib.request.urlopen(url, context=ssl._create_unverified_context())
+            url_size = int( url_request.getheader('content-length') )
+
+            bytes_io = io.BytesIO()
+
+            file_size_dl = 0
+            for i in itertools.count():
+                buffer = url_request.read(8192)
+                
+                if (i % 1000) == 0 or not buffer:
+                    yield ax.switch_to(self._main_thread)
+                    self._mx_info.emit(f'{file_size_dl} / {url_size}')
+                    yield ax.switch_to(self._io_thread)
+                    
+                if not buffer:
+                    break
+                
+                bytes_io.write(buffer)
+                file_size_dl += len(buffer)
+                
+            bytes_io.seek(0)
+            model_state = pickle.load(bytes_io)
+        except Exception as e:
+            err = e
+        
+        if err is None:        
+            yield ax.wait(t := self._import_model_state(model_state))
+            if not t.succeeded:
+                err = t.error
+                if err is None:
+                    err = Exception('Unknown')
+            
+        yield ax.switch_to(self._main_thread)
+            
+        if err is not None:
+            self._mx_info.emit(f'@(Error): {err}')
+            yield ax.cancel(err)
+        else:
+            self._mx_info.emit(f'@(Success).')
+                
+    @ax.task
+    def export_model(self, filepath : Path):
+        yield ax.attach_to(self._tg)
+        yield ax.switch_to(self._main_thread)
+        
+        self._mx_info.emit(f'@(MxModel.Exporting_model_to) {filepath} ...')
+        
+        yield ax.switch_to(self._model_thread)
+        
+        err = None
+        try:
+            filepath.write_bytes( pickle.dumps(self._get_model_state()) )
+        except Exception as e:
+            err = e
+            
+        yield ax.switch_to(self._main_thread)
+            
+        if err is not None:
+            self._mx_info.emit(f'@(Error): {err}')
+            yield ax.cancel(err)
+        else:
+            self._mx_info.emit(f'@(Success).')
+        
+    #################
+    ### INFER / TRAIN
+    #################
     @ax.task
     def infer(self, image_np : List[NPImage]) -> InferResult:
         """
@@ -353,8 +510,11 @@ class MxModel(mx.Disposable):
 
         except Exception as e:
             yield ax.cancel(e)
-
-
+    
+    ##########################
+    ##########################
+    ##########################
+    
 # Network blocks
 
 class Encoder(nn.Module):

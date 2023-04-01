@@ -60,6 +60,11 @@ class ModulesOnDemand(mx.Disposable):
                 d[f'{key}_state_bytes'] = model_state_bytes
         return d
 
+    def set_state(self, state : dict):
+        """reset all modules and set state."""
+        self.reset_modules()
+        self._initial_state = state
+
     def reset_modules(self):
         """reset all modules. Modules will be reinstantiated on next request."""
         for key in list(self._modules.keys()):

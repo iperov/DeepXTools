@@ -26,6 +26,7 @@ from .QComboBoxMxSingleChoice import QComboBoxMxSingleChoice
 from .QDarkFusionStyle import QDarkFusionPalette, QDarkFusionStyle
 from .QDoubleSpinBox import QDoubleSpinBox
 from .QDoubleSpinBoxMxNumber import QDoubleSpinBoxMxNumber
+from .QFileDialog import QFileDialog
 from .QFontDB import Font, QFontDB
 from .QFrame import QFrame, QHFrame, QVFrame
 from .QGrid import QGrid

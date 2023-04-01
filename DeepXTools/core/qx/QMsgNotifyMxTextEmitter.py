@@ -1,4 +1,4 @@
-from .. import mx, qt
+from .. import lx, mx, qt
 from ._constants import Align
 from .QBox import QHBox, QVBox
 from .QFontDB import Font
@@ -7,6 +7,7 @@ from .QIonIconDB import IonIcon, QIonIconDB
 from .QLabel import QLabel
 from .QPushButton import QPushButton
 from .QTextEdit import QTextEdit
+from .QApplication import QApplication
 
 
 class QMsgNotifyMxTextEmitter(QHBox):
@@ -35,6 +36,8 @@ class QMsgNotifyMxTextEmitter(QHBox):
         return self
 
     def _on_text(self, text : str):
+        text = lx.L(text, QApplication.instance().mx_language.get())
+        
         te = self._te.get_q_text_edit()
 
         cursor = te.textCursor()

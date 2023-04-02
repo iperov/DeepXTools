@@ -6,6 +6,8 @@ from .. import lx, qt
 from ._helpers import q_init
 from .QApplication import QApplication
 from .QBox import QVBox
+from .QEvent import QEvent1
+from .QSettings import QSettings
 from .QWidget import QWidget
 
 
@@ -28,6 +30,16 @@ class QTabWidget(QWidget):
 
     def __init__(self, **kwargs):
         super().__init__(q_widget=q_init('q_tab_widget', qt.QTabWidget, **kwargs), **kwargs)
+        
+        q_tab_widget = self.get_q_tab_widget()
+        QEvent1[int](q_tab_widget.currentChanged).dispose_with(self).listen(self._on_current_changed)
+
+        
+        self.__settings = QSettings()
+
+    def __dispose__(self):
+        self.__settings = {}
+        super().__dispose__()
 
     def get_q_tab_widget(self) -> qt.QTabWidget: return self.get_q_widget()
 
@@ -41,3 +53,13 @@ class QTabWidget(QWidget):
         self.get_q_tab_widget().setTabPosition(position)
         return self
 
+    def _on_current_changed(self, idx : int):
+        self.__settings['current_index'] = idx
+        
+    def _settings_event(self, settings : QSettings):
+        super()._settings_event(settings)
+        self.__settings = settings
+        
+        if (current_index := settings.get('current_index', None)) is not None:
+            self.get_q_tab_widget().setCurrentIndex(current_index)
+            

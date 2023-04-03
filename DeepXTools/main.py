@@ -34,6 +34,21 @@ def main():
 
     deep_roto_parser.set_defaults(func=deep_roto_run)
 
+    deep_fake_parser = run_subparsers.add_parser("DeepFake", help="Run Deep Fake.")
+    deep_fake_parser.add_argument('--ui-data-dir', required=True, action=lib_argparse.FixPathAction, help="UI data directory.")
+    deep_fake_parser.add_argument('--open-path', required=False, action=lib_argparse.FixPathAction, help="Open .dxf project path.")
+    def deep_roto_run(args):
+        from DeepFake import MxDeepFake, QxDeepFakeApp
+        deep_fake = MxDeepFake(open_path=Path(args.open_path) if args.open_path is not None else None)
+
+        app = QxDeepFakeApp(deep_fake=deep_fake, settings_path=Path(args.ui_data_dir) / 'DeepFake.ui')
+        app.exec()
+        app.dispose()
+
+        deep_fake.dispose()
+
+    deep_fake_parser.set_defaults(func=deep_roto_run)
+
     def bad_args(args):
         parser.print_help()
         exit(0)

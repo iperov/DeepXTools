@@ -521,6 +521,7 @@ def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cud
 
     builder.create_run_python_script('MaskEditor.bat', 'repo\\DeepXTools\\main.py', 'run MaskEditor --ui-data-dir "%~dp0_internal"')
     builder.create_run_python_script('DeepRoto.bat', 'repo\\DeepXTools\\main.py', 'run DeepRoto  --ui-data-dir "%~dp0_internal"')
+    builder.create_run_python_script('DeepFake(experimental).bat', 'repo\\DeepXTools\\main.py', 'run DeepFake  --ui-data-dir "%~dp0_internal"')
 
     builder.install_vscode(folders=['repo/DeepXTools','repo'])
 

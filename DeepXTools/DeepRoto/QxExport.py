@@ -30,7 +30,7 @@ class QxExport(qx.QVBox):
                 .grid())
 
             .add(qx.QHBox()
-                    .add( (export_btn := qx.QPushButton()).set_text('@(QxExport.Export)')
+                    .add( (export_btn := qx.QPushButton()).set_text('@(Export)')
                                     .inline(lambda btn: btn.mx_clicked.listen(lambda: export.start()).dispose_with(self)))
 
                     .add( (cancel_btn := qx.QPushButton()).set_text('@(Cancel)')

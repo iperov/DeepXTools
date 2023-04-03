@@ -123,6 +123,12 @@ _id_to_string_dict = {
         'en' : 'Export',
         'ru' : 'Экспорт',
     },
+    
+    'dimension' : {
+        'en' : 'dimension',
+        'ru' : 'размерность',
+    },
+    
     ############
     ### Specific
     ############
@@ -466,20 +472,25 @@ _id_to_string_dict = {
         'en' : 'Input',
         'ru' : 'Вход',
     },
-
+    
     'QxExport.Output' : {
         'en' : 'Output',
         'ru' : 'Выход',
     },
-
+    
+    'QxExport.Output_image' : {
+        'en' : 'Output image',
+        'ru' : 'Выход изображения',
+    },
+    
+    'QxExport.Output_mask' : {
+        'en' : 'Output mask',
+        'ru' : 'Выход маски',
+    },
+    
     'QxExport.Patch_mode' : {
         'en' : 'Patch mode',
         'ru' : 'Режим патча',
-    },
-
-    'QxExport.Export' : {
-        'en' : 'Export',
-        'ru' : 'Экспортировать',
     },
 
     'QxExport.Sample_count' : {

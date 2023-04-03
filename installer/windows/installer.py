@@ -452,6 +452,8 @@ fr"""@echo off
 cd /D %~dp0
 call {self.DIRNAME_INTERNAL}\setenv.bat
 "%PYTHONEXECUTABLE%" {self.DIRNAME_INTERNAL}\{internal_relative_path} {args_str}
+
+if %ERRORLEVEL% NEQ 0 pause
 """)
 
     def create_internal_run_python_script(self, script_name : str, internal_relative_path : str, args_str : str):
@@ -461,6 +463,8 @@ fr"""@echo off
 cd /D %~dp0
 call setenv.bat
 "%PYTHONEXECUTABLE%" {internal_relative_path} {args_str}
+
+if %ERRORLEVEL% NEQ 0 pause
 """)
 
 def install_deepxtools(release_dir, cache_dir, python_ver='3.10.9', backend='cuda'):

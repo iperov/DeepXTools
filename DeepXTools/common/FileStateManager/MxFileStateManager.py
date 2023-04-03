@@ -29,14 +29,10 @@ class MxFileStateManager(mx.Disposable):
         Initialized = auto()
 
     def __init__(self,  file_suffix : str,
-                        rel_path : Path = None,
                         on_close : Callable[ [], ax.Task ] = None,
                         task_on_load : Callable[ [Dict], ax.Task ] = None,
                         task_get_state : Callable[ [], ax.Task[Dict] ] = None ):
         """```
-            rel_path(None)   Path   Default: os.getcwd()
-                                    converts all Paths in state dict
-                                    to relative to cwd, if possible.
 
             on_close            called from main thread
 
@@ -52,14 +48,12 @@ class MxFileStateManager(mx.Disposable):
 
         super().__init__()
         self._state_path : Path = None
-        
-        if rel_path is None:
-            rel_path = Path(os.getcwd())
-        self._rel_path = rel_path
-        
+
         self._on_close = on_close
         self._task_on_load = task_on_load
         self._task_get_state = task_get_state
+        
+        self._rel_path : Path = None
 
         self._mx_state = mx.Property[MxFileStateManager.State](MxFileStateManager.State.Uninitialized).dispose_with(self)
         self._mx_error = mx.Property[Exception|None](None).dispose_with(self)
@@ -168,6 +162,9 @@ class MxFileStateManager(mx.Disposable):
             try:
                 with open(state_path, 'rb') as file:
                     state = pickle.load(file)
+                    
+                self._rel_path = state_path.parent
+                    
                 state = self._repack_traverse(state, is_pack=False)
             except Exception as e:
                 err = e

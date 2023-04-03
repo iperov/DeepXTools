@@ -430,20 +430,27 @@ class NPImage:
         img = img.reshape(OH,OW,C)
         return NPImage(img)
 
-    def save(self, path : Path):
+    def save(self, path : Path, quality : int = 100):
         """raise on error"""
 
         suffix = path.suffix
-        if suffix == '.png':
-            img = self.u8().HWC()
-        elif suffix in ['.jpeg','.jpg','.jpe','.jp2']:
+        if suffix in ['.png', '.webp', '.jpeg','.jpg','.jpe','.jp2']:
             img = self.u8().HWC()
         elif suffix in ['.tiff', '.tif']:
             img = self.f32().HWC()
         else:
             raise ValueError(f'Unsupported format {suffix}')
-
-        ret, buf = cv2.imencode(suffix, img)
+        
+        if format == 'webp':
+            imencode_args = [int(cv2.IMWRITE_WEBP_QUALITY), quality]
+        elif format == 'jpg':
+            imencode_args = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+        elif format == 'jp2':
+            imencode_args = [int(cv2.IMWRITE_JPEG2000_COMPRESSION_X1000), quality*10]
+        else:
+            imencode_args = []
+    
+        ret, buf = cv2.imencode(suffix, img, imencode_args)
         if not ret:
             raise Exception(f'Unable to encode image to {suffix}')
 

@@ -396,7 +396,7 @@ class MxModel(mx.Disposable):
                 pred_mask_t = decoder(shortcuts, x)
                 
                 if req.pred_mask:
-                    result.pred_mask_np = [ NPImage(x, channels_last=False) for x in pred_mask_t.detach().cpu().numpy().clip(0, 1) ]
+                    result.pred_mask_np = [ NPImage(x, channels_last=False) for x in (pred_mask_t.detach().cpu().numpy() / 2.0 + 0.5).clip(0, 1) ]
                 
             if train:
                 encoder_opt : Optimizer = self._mod.get_module('encoder_opt', device=device)

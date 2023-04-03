@@ -23,6 +23,7 @@ class QWindow(QVBox):
     def mx_window_leave(self) -> mx.IEvent0_r: return self.__mx_window_leave
 
     def get_window_handle(self) -> qt.QWindow | None: return self.__q_window
+    def get_window_icon(self) -> qt.QIcon: return self.get_q_widget().windowIcon()
 
     def activate(self):
         self.get_q_widget().activateWindow()
@@ -46,12 +47,12 @@ class QWindow(QVBox):
     def set_window_flags(self, wnd_type : WindowType):
         self.get_q_widget().setWindowFlags(wnd_type)
         return self
-    
+
     def show(self):
         super().show()
         if (window_state := self.__settings.get('windowState', None)) is not None:
             self.get_q_widget().setWindowState(qt.Qt.WindowState(window_state))
-        
+
 
     def _event_filter(self, object: qt.QObject, ev: qt.QEvent) -> bool:
         r = super()._event_filter(object, ev)
@@ -77,11 +78,11 @@ class QWindow(QVBox):
             q_window.installEventFilter(self.get_q_object())
 
         super()._show_event(ev)
-        
+
         v = self.get_q_widget().windowState()
         if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowNoState and \
             (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowNoState and \
-            (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:     
+            (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:
             pos = self.__settings.get('geometry.pos', None)
             size = self.__settings.get('geometry.size', None)
             if size is None:
@@ -96,8 +97,8 @@ class QWindow(QVBox):
                 screen_size = app.primaryScreen().size()
                 widget_width, widget_height = self.get_q_widget().size().width(), self.get_q_widget().size().height()
                 self.get_q_widget().move( (screen_size.width() - widget_width) // 2,  (screen_size.height() - widget_height) // 2 )
-            
-            
+
+
     def _hide_event(self, ev: qt.QHideEvent):
         super()._hide_event(ev)
         if self.__q_window is not None:
@@ -110,7 +111,7 @@ class QWindow(QVBox):
             v = self.get_q_widget().windowState()
             if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowNoState and \
                (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowNoState and \
-               (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:     
+               (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:
                 self.__settings['geometry.pos'] = self.get_q_widget().pos().toTuple()
 
     def _resize_event(self, ev : qt.QResizeEvent):
@@ -119,17 +120,16 @@ class QWindow(QVBox):
             v = self.get_q_widget().windowState()
             if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowNoState and \
                (v & qt.Qt.WindowState.WindowMinimized) == qt.Qt.WindowState.WindowNoState and \
-               (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:           
+               (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowNoState:
                 self.__settings['geometry.size'] = self.get_q_widget().size().toTuple()
 
     def _change_event(self, ev: qt.QEvent):
         super()._change_event(ev)
         if ev.type() == qt.QEvent.Type.WindowStateChange:
-            
+
             v = self.get_q_widget().windowState()
             self.__settings['windowState'] = v.value
             if (v & qt.Qt.WindowState.WindowMaximized) == qt.Qt.WindowState.WindowMaximized or \
                (v & qt.Qt.WindowState.WindowFullScreen) == qt.Qt.WindowState.WindowFullScreen:
                 self.__settings['geometry.pos'] = None
                 self.__settings['geometry.size'] = None
-            

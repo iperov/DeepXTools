@@ -86,6 +86,7 @@ class QAppWindow(QWindow):
             wnd.activate()
         else:
             wnd = self._ax_monitor_wnd = QAxMonitorWindow().dispose_with(self)
+            wnd.set_window_icon(self.get_window_icon())
             wnd.call_on_dispose(lambda: setattr(self, '_ax_monitor_wnd', None) )
             wnd.mx_close.listen(lambda ev: wnd.dispose())
             wnd.show()
@@ -95,6 +96,7 @@ class QAppWindow(QWindow):
             wnd.activate()
         else:
             wnd = self._about_wnd = QAboutWindow().dispose_with(self)
+            wnd.set_window_icon(self.get_window_icon())
             wnd.call_on_dispose(lambda: setattr(self, '_about_wnd', None) )
             wnd.mx_close.listen(lambda ev: wnd.dispose())
             wnd.show()

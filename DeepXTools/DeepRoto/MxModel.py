@@ -26,19 +26,34 @@ from core.lib.torch.optim import AdaBelief, Optimizer
 
         
 class MxModel(mx.Disposable):
+        
     @dataclass
-    class InferResult:
-        image_np : List[NPImage]
-        pred_mask_np : List[NPImage]
+    class StepRequest:
+        image_np : List[NPImage]|None = None
+        target_mask_np : List[NPImage]|None = None
+        
+        pred_mask : bool = False
 
+        dssim_x4_power : float = 1.0
+        dssim_x8_power : float = 1.0
+        dssim_x16_power : float = 1.0
+        dssim_x32_power : float = 1.0
+        mse_power : float = 1.0
+        
+        batch_acc : int = 1
+        lr : float = 5e-5
+        lr_dropout : float = 0.3
+    
     @dataclass
-    class TrainStepResult:
-        image_np : List[NPImage]
-        target_mask_np : List[NPImage]
-        step_time : float
-        iteration : int
-        error : float
-        accuracy : float
+    class StepResult:
+        image_np : List[NPImage]|None = None
+        target_mask_np : List[NPImage]|None = None        
+        pred_mask_np : List[NPImage]|None = None
+        
+        time : float = 0.0
+        iteration : int = 0
+        error : float = 0.0
+        accuracy : float = 0.0
 
     class InputType(Enum):
         Color = auto()
@@ -325,158 +340,102 @@ class MxModel(mx.Disposable):
             self._mx_info.emit(f'@(Success).')
         
     #################
-    ### INFER / TRAIN
-    #################
+    ### STEP INFER / TRAIN
+    #################            
     @ax.task
-    def infer(self, image_np : List[NPImage]) -> InferResult:
-        """
-            image_np    List[NPImage]
-
-        Images will be transformed to match current model `.get_input_resolution()` and `.get_input_ch()`.
-        To remove performance impact prepare images before infer or use multiple tasks in queue.
-        """
+    def step(self, req : StepRequest) -> StepResult:
         yield ax.attach_to(self._tg, detach_parent=False)
 
+        result = MxModel.StepResult()
+        
+        batch_acc  = req.batch_acc
+        lr         = req.lr
+        lr_dropout = req.lr_dropout
+        
+        train_mask  = req.image_np is not None and req.target_mask_np is not None
+        pred_mask   = req.image_np is not None and (train_mask or req.pred_mask)
+        
+        train = train_mask
+        
         while True:
             # Prepare data in pool.
             yield ax.switch_to(self._prepare_thread_pool)
 
             resolution = self._resolution
             input_type = self._input_type
-
-            p_image_np = [ (x.grayscale() if input_type == MxModel.InputType.Luminance else x.bgr()).resize(resolution, resolution, interp=NPImage.Interp.LANCZOS4)
-                            .f32() for x in image_np]
-            p_image_nd = np.stack([x.CHW() for x in p_image_np])
-
-            yield ax.switch_to(self._model_thread)
-
-            if resolution == self._resolution and input_type == self._input_type:
-                # Prepared data matches model parameters.
-                break
-
-        try:
-            device = self._device
-
-            input_t = torch.tensor(p_image_nd, device=device.device)
-
-            # Inference
-            encoder : Encoder = self._mod.get_module('encoder', device=device, train=False)
-            decoder : Decoder = self._mod.get_module('decoder', device=device, train=False)
-
-            with torch.no_grad():
-                shortcuts, x = encoder(input_t)
-                pred_mask_t = decoder(shortcuts, x) / 2.0 + 0.5
-
-            pred_mask_nd = pred_mask_t.detach().cpu().numpy()
-
-            yield ax.switch_to(self._prepare_thread_pool)
-
-            # Make result
-            return MxModel.InferResult( image_np = p_image_np,
-                                        pred_mask_np = [ NPImage(x, channels_last=False) for x in pred_mask_nd.clip(0, 1) ])
-
-        except Exception as e:
-            yield ax.cancel(e)
-
-    @ax.task
-    def train_step(self,    image_np : List[NPImage],
-                            target_mask_np : List[NPImage],
-                            mse_power : float = 1.0,
-                            dssim_x4_power : float = 0.0,
-                            dssim_x8_power : float = 0.0,
-                            dssim_x16_power : float = 0.0,
-                            dssim_x32_power : float = 0.0,
-                            batch_acc : int = 1,
-                            lr=5e-5,
-                            lr_dropout=0.3,
-                            train_encoder=True,
-                            train_decoder=True,
-                ) -> TrainStepResult:
-        """
-            image_np    List[NPImage]
-
-            target_mask_np    List[NPImage]
-
-        Images will be transformed to match current model `.get_input_resolution()` and `.get_input_ch()`.
-        To remove performance impact prepare images before or use multiple tasks in queue.
-        """
-        yield ax.attach_to(self._tg, detach_parent=False)
-
-        if len(image_np) != len(target_mask_np):
-            raise ValueError('len(image_np) != len(target_mask_np)')
-
-        while True:
-            # Prepare data in pool.
-            yield ax.switch_to(self._prepare_thread_pool)
-
-            resolution = self._resolution
-            input_type = self._input_type
-
-            p_image_np = [ (x.grayscale() if input_type == MxModel.InputType.Luminance else x.bgr()).resize(resolution, resolution, interp=NPImage.Interp.LANCZOS4)
-                            .f32() for x in image_np]
-            p_image_nd = np.stack([x.CHW() for x in p_image_np])
-
-            p_target_mask_np = [x.grayscale().resize(resolution, resolution, interp=NPImage.Interp.CUBIC).f32() for x in target_mask_np]
-            p_target_mask_nd = np.stack([x.CHW() for x in p_target_mask_np])
+            
+            if req.image_np is not None:
+                p_image_np = result.image_np = [ (x.grayscale() if input_type == MxModel.InputType.Luminance else x.bgr()).resize(resolution, resolution, interp=NPImage.Interp.LANCZOS4).f32() for x in req.image_np]
+                p_image_nd = np.stack([x.CHW() for x in p_image_np])
+            
+            if req.target_mask_np is not None:
+                p_target_mask_np = result.target_mask_np = [x.grayscale().resize(resolution, resolution, interp=NPImage.Interp.LINEAR).f32() for x in req.target_mask_np]
+                p_target_mask_nd = np.stack([x.CHW() for x in p_target_mask_np])
 
             yield ax.switch_to(self._model_thread)
 
             if resolution == self._resolution and input_type == self._input_type:
                 # Prepared data matches model parameters.
                 break
-
+        
         try:
             step_time = lib_time.measure()
             iteration = self._iteration
             device = self._device
 
-            input_t       = torch.tensor(p_image_nd, device=device.device)
-            target_mask_t = torch.tensor(p_target_mask_nd, device=device.device) * 2.0 - 1.0
-
-            # Inference
-            encoder : Encoder = self._mod.get_module('encoder', device=device, train=True)
-            decoder : Decoder = self._mod.get_module('decoder', device=device, train=True)
-
-            if train_encoder:
+            encoder : Encoder = self._mod.get_module('encoder', device=device, train=train)
+            decoder : Decoder = self._mod.get_module('decoder', device=device, train=train)
+            
+            if pred_mask:            
+                input_t = torch.tensor(p_image_nd, device=device.device)
+            if train_mask:                
+                target_mask_t = torch.tensor(p_target_mask_nd, device=device.device) * 2.0 - 1.0
+            
+            if pred_mask:                
+                shortcuts, x = encoder(input_t)
+                pred_mask_t = decoder(shortcuts, x)
+                
+                if req.pred_mask:
+                    result.pred_mask_np = [ NPImage(x, channels_last=False) for x in pred_mask_t.detach().cpu().numpy().clip(0, 1) ]
+                
+            if train:
                 encoder_opt : Optimizer = self._mod.get_module('encoder_opt', device=device)
-                if (iteration % batch_acc) == 0:
-                    encoder_opt.zero_grad()
-
-            if train_decoder:
                 decoder_opt : Optimizer = self._mod.get_module('decoder_opt', device=device)
                 if (iteration % batch_acc) == 0:
+                    encoder_opt.zero_grad()
                     decoder_opt.zero_grad()
-
-            #with torch.autocast(device.backend):
-            shortcuts, x = encoder(input_t)
-            pred_mask_t = decoder(shortcuts, x)
-            _, _, H, W = pred_mask_t.shape
-
+            
             # Collect losses
             losses = []
 
-            if mse_power != 0.0:
-                losses.append( torch.mean(mse_power*10*torch.square(pred_mask_t-target_mask_t), (1,2,3)) )
+            if (mse_power := req.mse_power) != 0.0:
+                if train_mask:
+                    losses.append( torch.mean(mse_power*10*torch.square(pred_mask_t-target_mask_t), (1,2,3)) )
 
-            if (dssim_x4_power + dssim_x8_power + dssim_x16_power + dssim_x32_power) != 0.0:
-                pred_mask_u_t = pred_mask_t / 2 + 0.5
-                target_mask_u_t = target_mask_t / 2 + 0.5
+            if (req.dssim_x4_power + req.dssim_x8_power + req.dssim_x16_power + req.dssim_x32_power) != 0.0:
+                if train_mask:
+                    pred_mask_u_t = pred_mask_t / 2 + 0.5
+                    target_mask_u_t = target_mask_t / 2 + 0.5
 
-            if dssim_x4_power != 0.0:
+            if (dssim_x4_power := req.dssim_x4_power) != 0.0:
                 kernel_size = lib_math.next_odd(resolution//4)
-                losses.append( dssim_x4_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+                if train_mask:
+                    losses.append( dssim_x4_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
 
-            if dssim_x8_power != 0.0:
+            if (dssim_x8_power := req.dssim_x8_power) != 0.0:
                 kernel_size = lib_math.next_odd(resolution//8)
-                losses.append( dssim_x8_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+                if train_mask:
+                    losses.append( dssim_x8_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
 
-            if dssim_x16_power != 0.0:
+            if (dssim_x16_power := req.dssim_x16_power) != 0.0:
                 kernel_size = lib_math.next_odd(resolution//16)
-                losses.append( dssim_x16_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+                if train_mask:
+                    losses.append( dssim_x16_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
 
-            if dssim_x32_power != 0.0:
+            if (dssim_x32_power := req.dssim_x32_power) != 0.0:
                 kernel_size = lib_math.next_odd(resolution//32)
-                losses.append( dssim_x32_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+                if train_mask:
+                    losses.append( dssim_x32_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
 
             loss_t = None
             if len(losses) != 0:
@@ -487,27 +446,21 @@ class MxModel(mx.Disposable):
                 if (iteration % batch_acc) == (batch_acc-1):
                     grad_mult = 1.0 / batch_acc
 
-                    if train_encoder:
+                    if train:
                         encoder_opt.step(iteration=iteration, grad_mult=grad_mult, lr=lr, lr_dropout=lr_dropout)
-
-                    if train_decoder:
                         decoder_opt.step(iteration=iteration, grad_mult=grad_mult, lr=lr, lr_dropout=lr_dropout)
 
             # Metrics
-            error    = float( loss_t.detach().cpu().numpy() ) if loss_t is not None else 0
-            accuracy = float( (1 - torch.abs(pred_mask_t-target_mask_t).sum((-1,-2)).mean() / (H*W*2)).detach().cpu().numpy() )
+            result.error    = float( loss_t.detach().cpu().numpy() ) if loss_t is not None else 0
+            result.accuracy = float( (1 - torch.abs(pred_mask_t-target_mask_t).sum((-1,-2)).mean() / (resolution*resolution*2)).detach().cpu().numpy() ) if train else 0
 
             # Update vars
-            self._iteration = iteration + 1
-
-            # Make result
-            return MxModel.TrainStepResult( image_np = p_image_np,
-                                            target_mask_np = p_target_mask_np,
-                                            step_time = step_time.elapsed(),
-                                            iteration = iteration,
-                                            error = error,
-                                            accuracy = accuracy )
-
+            if train:
+                self._iteration = iteration + 1
+            
+            result.time = step_time.elapsed()
+            return result
+        
         except Exception as e:
             yield ax.cancel(e)
     

@@ -98,6 +98,31 @@ _id_to_string_dict = {
         'en' : 'Remove item',
         'ru' : 'Убрать позицию',
     },
+    
+    'File_state_manager':{
+        'en' : 'File state manager',
+        'ru' : 'Менеджер файлового состояния',
+    },
+
+    'Data_generator':{
+        'en' : 'Data generator',
+        'ru' : 'Генератор данных',
+    },
+
+    'Model':{
+        'en' : 'Model',
+        'ru' : 'Модель',
+    },
+
+    'Trainer':{
+        'en' : 'Trainer',
+        'ru' : 'Тренер',
+    },
+
+    'Export' : {
+        'en' : 'Export',
+        'ru' : 'Экспорт',
+    },
     ############
     ### Specific
     ############
@@ -190,30 +215,7 @@ _id_to_string_dict = {
         'ru' : 'Среднее для',
     },
 
-    'QxDeepRoto.File_state_manager':{
-        'en' : 'File state manager',
-        'ru' : 'Менеджер файлового состояния',
-    },
-
-    'QxDeepRoto.Data_generator':{
-        'en' : 'Data generator',
-        'ru' : 'Генератор данных',
-    },
-
-    'QxDeepRoto.Model':{
-        'en' : 'Model',
-        'ru' : 'Модель',
-    },
-
-    'QxDeepRoto.Trainer':{
-        'en' : 'Trainer',
-        'ru' : 'Тренер',
-    },
-
-    'QxDeepRoto.Export' : {
-        'en' : 'Export',
-        'ru' : 'Экспорт',
-    },
+    
 
     'QxDataGenerator.Reload' : {
         'en' : 'Reload',
@@ -534,18 +536,22 @@ _id_to_string_dict = {
         'en' : 'Target mask',
         'ru' : 'Целевая маска',
     },
-
+    
+    'QxPreview.Predicted_image' : {
+        'en' : 'Predicted image',
+        'ru' : 'Предсказанное изображение',
+    },
+    
     'QxPreview.Predicted_mask' : {
         'en' : 'Predicted mask',
         'ru' : 'Предсказанная маска',
     },
 
-
     'Metric.Error':{
         'en' : 'Error',
         'ru' : 'Ошибка',
     },
-
+    
     'Metric.Accuracy':{
         'en' : 'Accuracy',
         'ru' : 'Точность',

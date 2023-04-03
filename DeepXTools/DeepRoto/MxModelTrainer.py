@@ -104,7 +104,7 @@ class MxModelTrainer(mx.Disposable):
 
         dg_tasks = ax.TaskSet[MxDataGenerator.GenResult]()
         dg_data : Deque[MxDataGenerator.GenResult] = deque()
-        training_tasks = ax.TaskSet[MxModel.TrainStepResult]()
+        training_tasks = ax.TaskSet[MxModel.StepResult]()
 
         iteration_time = 0
         while True:
@@ -134,20 +134,20 @@ class MxModelTrainer(mx.Disposable):
             # Keep running two training tasks
             if training_tasks.count < 2 and len(dg_data) != 0:
                 data = dg_data.popleft()
-                training_tasks.add( model.train_step(   image_np=data.image_np,
-                                                        target_mask_np=data.target_mask_np,
-                                                        mse_power=mse_power,
-                                                        dssim_x4_power=dssim_power,
-                                                        dssim_x8_power=dssim_power,
-                                                        dssim_x16_power=dssim_power,
-                                                        dssim_x32_power=dssim_power,
-                                                        batch_acc=batch_acc,
-                                                        lr=lr,
-                                                        ))
+                
+                training_tasks.add( model.step( MxModel.StepRequest(image_np=data.image_np,
+                                                target_mask_np=data.target_mask_np,
+                                                mse_power=mse_power,
+                                                dssim_x4_power=dssim_power,
+                                                dssim_x8_power=dssim_power,
+                                                dssim_x16_power=dssim_power,
+                                                dssim_x32_power=dssim_power,
+                                                batch_acc=batch_acc,
+                                                lr=lr,)))
 
             for t in training_tasks.fetch(succeeded=True):
                 t_result = t.result
-                iteration_time = t_result.step_time
+                iteration_time = t_result.time
                 self._mx_metrics_graph.add({ '@(Metric.Error)' : t_result.error,
                                              '@(Metric.Accuracy)' : t_result.accuracy,
                                              '@(Metric.Iteration_time)' : iteration_time,

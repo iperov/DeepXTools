@@ -183,12 +183,14 @@ class MxExport(mx.Disposable):
 
                     patcher = Patcher(image_np, model_res, sample_count=sample_count, use_padding=fix_borders)
                     for i in range(patcher.patch_count):
-                        yield ax.wait(t := model.infer([patcher.get_patch(i)]))
+                        
+                        
+                        yield ax.wait(step_task := model.step(MxModel.StepRequest(image_np=[patcher.get_patch(i)], pred_mask=True)))
 
-                        if t.succeeded:
-                            patcher.merge_patch(i, t.result.pred_mask_np[0] )
+                        if step_task.succeeded:
+                            patcher.merge_patch(i, step_task.result.pred_mask_np[0] )
                         else:
-                            err = t.error
+                            err = step_task.error
                             break
 
                     if err is None:
@@ -196,12 +198,12 @@ class MxExport(mx.Disposable):
                 else:
                     err = Exception('Image size is less than model resolution')
             else:
-                yield ax.wait(t := model.infer([image_np]))
+                yield ax.wait(step_task := model.step(MxModel.StepRequest(image_np=[image_np], pred_mask=True)))
 
-                if t.succeeded:
-                    pred_mask_np = t.result.pred_mask_np[0]
+                if step_task.succeeded:
+                    pred_mask_np = step_task.result.pred_mask_np[0]
                 else:
-                    err = t.error
+                    err = step_task.error
 
         if err is None:
             try:

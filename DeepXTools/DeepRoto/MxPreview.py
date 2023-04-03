@@ -122,16 +122,16 @@ class MxPreview(mx.Disposable):
                                                                      grayscale=model.get_input_ch()==1))
         if data_gen_task.succeeded:
             gen_result = data_gen_task.result
+            
+            yield ax.wait(step_task := model.step(MxModel.StepRequest(image_np=gen_result.image_np, pred_mask=True)))
 
-            yield ax.wait(infer_task := model.infer(gen_result.image_np))
-
-            if infer_task.succeeded:
+            if step_task.succeeded:
                 self._mx_sample.set(MxPreview.Sample(   image_np       = gen_result.image_np[0],
                                                         target_mask_np = gen_result.target_mask_np[0],
-                                                        pred_mask_np   = infer_task.result.pred_mask_np[0],
+                                                        pred_mask_np   = step_task.result.pred_mask_np[0],
                                                         name           = gen_result.image_paths[0].name ))
             else:
-                yield ax.cancel(infer_task.error)
+                yield ax.cancel(step_task.error)
         else:
             yield ax.cancel(data_gen_task.error)
 
@@ -218,24 +218,25 @@ class MxPreview(mx.Disposable):
                 patcher = Patcher(image_np, model.get_input_resolution(), sample_count=sample_count, use_padding=fix_borders)
 
                 for i in range(patcher.patch_count):
-                    yield ax.wait(t := model.infer([patcher.get_patch(i)]))
+                    
+                    yield ax.wait(step_task := model.step(MxModel.StepRequest(image_np=[patcher.get_patch(i)], pred_mask=True)))
 
-                    if t.succeeded:
-                        patcher.merge_patch(i, t.result.pred_mask_np[0] )
+                    if step_task.succeeded:
+                        patcher.merge_patch(i, step_task.result.pred_mask_np[0] )
                     else:
-                        err = t.error
+                        err = step_task.error
                         break
 
                 if err is None:
                     pred_mask_np = patcher.get_merged_image()
 
             else:
-                yield ax.wait(t := model.infer([image_np]))
+                yield ax.wait(step_task := model.step(MxModel.StepRequest(image_np=[image_np], pred_mask=True)))
 
-                if t.succeeded:
-                    pred_mask_np=t.result.pred_mask_np[0]
+                if step_task.succeeded:
+                    pred_mask_np=step_task.result.pred_mask_np[0]
                 else:
-                    err = t.error
+                    err = step_task.error
 
         yield ax.switch_to(self._main_thread)
 

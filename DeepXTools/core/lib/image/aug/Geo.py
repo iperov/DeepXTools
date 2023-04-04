@@ -78,8 +78,8 @@ class Geo:
         self._rnd_state = np.random.RandomState()
 
         if deform_transform_params is None:
-            deform_transform_params = TransformParams.generate( tx_var = 0.2,
-                                                                ty_var = 0.2,
+            deform_transform_params = TransformParams.generate( tx_var = 0.0,
+                                                                ty_var = 0.0,
                                                                 scale_var = 0.2,
                                                                 rot_deg_var = 180.0,
                                                                 rnd_state=self._rnd_state)

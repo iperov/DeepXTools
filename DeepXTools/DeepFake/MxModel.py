@@ -350,83 +350,6 @@ class MxModel(mx.Disposable):
             decoder : Decoder = self._mod.get_module('decoder', device=device, train=train)
             decoder_mask : Decoder = self._mod.get_module('decoder_mask', device=device, train=train)
 
-
-            if pred_src_image or pred_src_mask:
-                src_image_t = torch.tensor(src_image_nd, device=device.device)
-            if pred_dst_image or pred_dst_mask or pred_swap_image or pred_swap_mask:
-                dst_image_t = torch.tensor(dst_image_nd, device=device.device)
-            if train_src_image:
-                src_target_image_t = torch.tensor(src_target_image_nd, device=device.device)
-            if train_dst_image:
-                dst_target_image_t = torch.tensor(dst_target_image_nd, device=device.device)
-            if train_src_mask:
-                src_target_mask_t  = torch.tensor(src_target_mask_nd, device=device.device)
-            if train_dst_mask:
-                dst_target_mask_t  = torch.tensor(dst_target_mask_nd, device=device.device)
-
-            if pred_src_image or pred_src_mask:
-                src_enc_t = encoder(src_image_t)
-                src_src_code_t = inter_src(src_enc_t)
-                src_code_t = torch.cat([src_src_code_t, src_src_code_t], 1)
-
-            if pred_dst_image or pred_dst_mask or pred_swap_image or pred_swap_mask:
-                dst_enc_t = encoder(dst_image_t)
-                src_dst_code_t = inter_src(dst_enc_t)
-
-            if pred_dst_image or pred_dst_mask:
-                dst_dst_code_t = inter_dst(dst_enc_t)
-                dst_code_t = torch.cat([src_dst_code_t, dst_dst_code_t], 1)
-
-            if pred_swap_image or pred_swap_mask:
-                swap_code_t = torch.cat([src_dst_code_t, src_dst_code_t], 1)
-
-            if pred_src_image:
-                pred_src_image_t = decoder(src_code_t)
-                if req.pred_src_image:
-                    result.pred_src_image_np = [ NPImage(x, channels_last=False) for x in pred_src_image_t.detach().cpu().numpy().clip(0, 1) ]
-
-            if pred_src_mask:
-                pred_src_mask_t = decoder_mask(src_code_t)
-                if req.pred_src_mask:
-                    result.pred_src_mask_np = [ NPImage(x, channels_last=False) for x in pred_src_mask_t.detach().cpu().numpy().clip(0, 1) ]
-
-            if pred_dst_image:
-                pred_dst_image_t = decoder(dst_code_t)
-                if req.pred_dst_image:
-                    result.pred_dst_image_np = [ NPImage(x, channels_last=False) for x in pred_dst_image_t.detach().cpu().numpy().clip(0, 1) ]
-
-            if pred_dst_mask:
-                pred_dst_mask_t = decoder_mask(dst_code_t)
-                if req.pred_dst_mask:
-                    result.pred_dst_mask_np = [ NPImage(x, channels_last=False) for x in pred_dst_mask_t.detach().cpu().numpy().clip(0, 1) ]
-
-            if pred_swap_image:
-                pred_swap_image_t = decoder(swap_code_t)
-                if req.pred_swap_image:
-                    result.pred_swap_image_np = [ NPImage(x, channels_last=False) for x in pred_swap_image_t.detach().cpu().numpy().clip(0, 1) ]
-
-            if pred_swap_mask:
-                pred_swap_mask_t = decoder_mask(swap_code_t)
-                if req.pred_swap_mask:
-                    result.pred_swap_mask_np = [ NPImage(x, channels_last=False) for x in pred_swap_mask_t.detach().cpu().numpy().clip(0, 1) ]
-
-
-            if train_src_image and masked_training:
-                src_target_mask_blur_t = xF.gaussian_blur(src_target_mask_t, sigma=max(1, resolution // 32) )
-                src_target_mask_blur_t = torch.clamp(src_target_mask_blur_t, 0.0, 0.5) * 2.0
-
-                src_target_image_t = src_target_image_t * src_target_mask_blur_t
-                pred_src_image_t   = pred_src_image_t   * src_target_mask_blur_t
-
-            if train_dst_image and masked_training:
-                dst_target_mask_blur_t = xF.gaussian_blur(dst_target_mask_t, sigma=max(1, resolution // 32) )
-                dst_target_mask_blur_t = torch.clamp(dst_target_mask_blur_t, 0.0, 0.5) * 2.0
-
-                dst_target_image_t = dst_target_image_t * dst_target_mask_blur_t
-                pred_dst_image_t   = pred_dst_image_t   * dst_target_mask_blur_t
-
-
-
             if train_encoder:
                 encoder_opt : Optimizer = self._mod.get_module('encoder_opt', device=device)
                 if (iteration % batch_acc) == 0:
@@ -450,11 +373,85 @@ class MxModel(mx.Disposable):
                 decoder_mask_opt : Optimizer = self._mod.get_module('decoder_mask_opt', device=device)
                 if (iteration % batch_acc) == 0:
                     decoder_mask_opt.zero_grad()
+                    
+            with torch.set_grad_enabled(train):
+                if pred_src_image or pred_src_mask:
+                    src_image_t = torch.tensor(src_image_nd, device=device.device)
+                if pred_dst_image or pred_dst_mask or pred_swap_image or pred_swap_mask:
+                    dst_image_t = torch.tensor(dst_image_nd, device=device.device)
+                if train_src_image:
+                    src_target_image_t = torch.tensor(src_target_image_nd, device=device.device)
+                if train_dst_image:
+                    dst_target_image_t = torch.tensor(dst_target_image_nd, device=device.device)
+                if train_src_mask:
+                    src_target_mask_t  = torch.tensor(src_target_mask_nd, device=device.device)
+                if train_dst_mask:
+                    dst_target_mask_t  = torch.tensor(dst_target_mask_nd, device=device.device)
+
+                if pred_src_image or pred_src_mask:
+                    src_enc_t = encoder(src_image_t)
+                    src_src_code_t = inter_src(src_enc_t)
+                    src_code_t = torch.cat([src_src_code_t, src_src_code_t], 1)
+
+                if pred_dst_image or pred_dst_mask or pred_swap_image or pred_swap_mask:
+                    dst_enc_t = encoder(dst_image_t)
+                    src_dst_code_t = inter_src(dst_enc_t)
+
+                if pred_dst_image or pred_dst_mask:
+                    dst_dst_code_t = inter_dst(dst_enc_t)
+                    dst_code_t = torch.cat([src_dst_code_t, dst_dst_code_t], 1)
+
+                if pred_swap_image or pred_swap_mask:
+                    swap_code_t = torch.cat([src_dst_code_t, src_dst_code_t], 1)
+
+                if pred_src_image:
+                    pred_src_image_t = decoder(src_code_t)
+                    if req.pred_src_image:
+                        result.pred_src_image_np = [ NPImage(x, channels_last=False) for x in pred_src_image_t.detach().cpu().numpy().clip(0, 1) ]
+
+                if pred_src_mask:
+                    pred_src_mask_t = decoder_mask(src_code_t)
+                    if req.pred_src_mask:
+                        result.pred_src_mask_np = [ NPImage(x, channels_last=False) for x in pred_src_mask_t.detach().cpu().numpy().clip(0, 1) ]
+
+                if pred_dst_image:
+                    pred_dst_image_t = decoder(dst_code_t)
+                    if req.pred_dst_image:
+                        result.pred_dst_image_np = [ NPImage(x, channels_last=False) for x in pred_dst_image_t.detach().cpu().numpy().clip(0, 1) ]
+
+                if pred_dst_mask:
+                    pred_dst_mask_t = decoder_mask(dst_code_t)
+                    if req.pred_dst_mask:
+                        result.pred_dst_mask_np = [ NPImage(x, channels_last=False) for x in pred_dst_mask_t.detach().cpu().numpy().clip(0, 1) ]
+
+                if pred_swap_image:
+                    pred_swap_image_t = decoder(swap_code_t)
+                    if req.pred_swap_image:
+                        result.pred_swap_image_np = [ NPImage(x, channels_last=False) for x in pred_swap_image_t.detach().cpu().numpy().clip(0, 1) ]
+
+                if pred_swap_mask:
+                    pred_swap_mask_t = decoder_mask(swap_code_t)
+                    if req.pred_swap_mask:
+                        result.pred_swap_mask_np = [ NPImage(x, channels_last=False) for x in pred_swap_mask_t.detach().cpu().numpy().clip(0, 1) ]
+
+
+            if train_src_image and masked_training:
+                src_target_mask_blur_t = xF.gaussian_blur(src_target_mask_t, sigma=max(1, resolution // 32) )
+                src_target_mask_blur_t = torch.clamp(src_target_mask_blur_t, 0.0, 0.5) * 2.0
+
+                src_target_image_t = src_target_image_t * src_target_mask_blur_t
+                pred_src_image_t   = pred_src_image_t   * src_target_mask_blur_t
+
+            if train_dst_image and masked_training:
+                dst_target_mask_blur_t = xF.gaussian_blur(dst_target_mask_t, sigma=max(1, resolution // 32) )
+                dst_target_mask_blur_t = torch.clamp(dst_target_mask_blur_t, 0.0, 0.5) * 2.0
+
+                dst_target_image_t = dst_target_image_t * dst_target_mask_blur_t
+                pred_dst_image_t   = pred_dst_image_t   * dst_target_mask_blur_t
 
             # Collect losses
             src_losses = []
             dst_losses = []
-
 
             if (dssim_x4_power := req.dssim_x4_power) != 0.0:
                 kernel_size = lib_math.next_odd(resolution//4)

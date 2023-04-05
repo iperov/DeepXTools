@@ -106,15 +106,17 @@ def get_dir_paths(dir_path, subdirs=False) -> List[Path]:
 def relpath(path : Path, cwd : Path = None) -> Path:
     """if possible makes Path relative to `cwd` (or `os.getcwd()`)"""
     try:
-        path = path.relative_to( cwd if cwd is not None else Path(os.getcwd()) )
+        path = Path(os.path.relpath(path, cwd))
+        #path = path.relative_to( cwd if cwd is not None else Path(os.getcwd()) )
     except: ...
+    
     return path
 
 def abspath(path : Path, cwd : Path = None) -> Path:
     """resolve absolute path according `cwd` (or `os.getcwd()`)"""
     if not path.is_absolute():
-        path = (cwd if cwd is not None else Path(os.getcwd())) / path
-
+        path = Path( os.path.abspath( (cwd if cwd is not None else Path(os.getcwd())) / path ) )
+        #path = (cwd if cwd is not None else Path(os.getcwd())) / path
     return path
 
 # def get_image_unique_filestem_paths(dir_path, verbose_print_func=None):

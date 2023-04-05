@@ -4,6 +4,20 @@ from .QObject import QObject
 from .QWidget import QWidget
 from .QWindow import QWindow
 
+func_keys = [qt.Qt.Key.Key_Control, qt.Qt.Key.Key_Shift, qt.Qt.Key.Key_Alt,
+             qt.Qt.Key.Key_F1,
+             qt.Qt.Key.Key_F2,
+             qt.Qt.Key.Key_F3,
+             qt.Qt.Key.Key_F4,
+             qt.Qt.Key.Key_F5,
+             qt.Qt.Key.Key_F6,
+             qt.Qt.Key.Key_F7,
+             qt.Qt.Key.Key_F8,
+             qt.Qt.Key.Key_F9,
+             qt.Qt.Key.Key_F10,
+             qt.Qt.Key.Key_F11,
+             qt.Qt.Key.Key_F12,
+             ]
 
 class QShortcut(mx.Disposable):
     def __init__(self, keycomb : qt.QKeyCombination, anchor : QWidget):
@@ -85,17 +99,18 @@ class QShortcut(mx.Disposable):
     def _on_window_key_press(self, ev : qt.QKeyEvent):
         if self._anchor.is_visible() and not self._typing_focused:
             if not ev.isAutoRepeat():
-                if ev.key() in [qt.Qt.Key.Key_Control, qt.Qt.Key.Key_Shift, qt.Qt.Key.Key_Alt]:
+                if ev.key() in func_keys:
                     keycomb = ev.keyCombination()
                 else:
                     # Using native virtual key in order to ignore keyboard language
                     keycomb = qt.QKeyCombination(ev.modifiers(), qt.Qt.Key(ev.nativeVirtualKey()))
+                print(ev.key(), keycomb, self._keycomb)
                 if self._keycomb == keycomb:
                     self.press()
 
     def _on_window_key_release(self, ev : qt.QKeyEvent):
         if not ev.isAutoRepeat():
-            if ev.key() in [qt.Qt.Key.Key_Control, qt.Qt.Key.Key_Shift, qt.Qt.Key.Key_Alt]:
+            if ev.key() in func_keys:
                 keycomb = ev.keyCombination()
             else:
                 # Using native virtual key in order to ignore keyboard language

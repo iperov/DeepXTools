@@ -388,8 +388,9 @@ class MxModel(mx.Disposable):
             
             if pred_mask:            
                 input_t = torch.tensor(p_image_nd, device=device.device)
-            if train_mask:                
-                target_mask_t = torch.tensor(p_target_mask_nd, device=device.device) * 2.0 - 1.0
+            if train_mask:             
+                target_mask_u_t = torch.tensor(p_target_mask_nd, device=device.device)
+                target_mask_t = target_mask_u_t * 2.0 - 1.0
             
             if train:
                 encoder_opt : Optimizer = self._mod.get_module('encoder_opt', device=device)
@@ -402,9 +403,10 @@ class MxModel(mx.Disposable):
                 with torch.set_grad_enabled(train):
                     shortcuts, x = encoder(input_t)
                     pred_mask_t = decoder(shortcuts, x)
+                    pred_mask_u_t = pred_mask_t / 2.0 + 0.5
                     
                 if req.pred_mask:
-                    result.pred_mask_np = [ NPImage(x, channels_last=False) for x in (pred_mask_t.detach().cpu().numpy() / 2.0 + 0.5).clip(0, 1) ]
+                    result.pred_mask_np = [ NPImage(x, channels_last=False) for x in pred_mask_u_t.detach().cpu().numpy().clip(0, 1) ]
             
             # Collect losses
             losses = []
@@ -412,11 +414,6 @@ class MxModel(mx.Disposable):
             if (mse_power := req.mse_power) != 0.0:
                 if train_mask:
                     losses.append( torch.mean(mse_power*10*torch.square(pred_mask_t-target_mask_t), (1,2,3)) )
-
-            if (req.dssim_x4_power + req.dssim_x8_power + req.dssim_x16_power + req.dssim_x32_power) != 0.0:
-                if train_mask:
-                    pred_mask_u_t = pred_mask_t / 2 + 0.5
-                    target_mask_u_t = target_mask_t / 2 + 0.5
 
             if (dssim_x4_power := req.dssim_x4_power) != 0.0:
                 kernel_size = lib_math.next_odd(resolution//4)

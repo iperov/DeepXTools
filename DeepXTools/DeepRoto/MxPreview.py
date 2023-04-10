@@ -170,7 +170,8 @@ class MxPreview(mx.Disposable):
         self._directory_disp_bag = mx.Disposable()
         self._directory_tg = ax.TaskGroup()
 
-        self._mx_directory_image_idx = mx.Number(self._state['directory_state'].get('directory_image_idx', 0), mx.NumberConfig(min=0, max=len(self._imagespaths)-1)).dispose_with(self._directory_disp_bag)
+        self._mx_directory_image_idx = mx.Number(0, mx.NumberConfig(min=0, max=len(self._imagespaths)-1)).dispose_with(self._directory_disp_bag)
+        self._mx_directory_image_idx.set( self._state['directory_state'].get('directory_image_idx', 0) )
         self._mx_directory_image_idx.listen(lambda _: self._infer_directory_sample())
 
         self._mx_patch_mode = mx.Flag(self._state['directory_state'].get('patch_mode', False)).dispose_with(self._directory_disp_bag)

@@ -104,7 +104,6 @@ class QShortcut(mx.Disposable):
                 else:
                     # Using native virtual key in order to ignore keyboard language
                     keycomb = qt.QKeyCombination(ev.modifiers(), qt.Qt.Key(ev.nativeVirtualKey()))
-                print(ev.key(), keycomb, self._keycomb)
                 if self._keycomb == keycomb:
                     self.press()
 

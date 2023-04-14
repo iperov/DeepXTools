@@ -26,9 +26,9 @@ class BlurPool(nn.Module):
 
         kernel = kernel[:,None]*kernel[None,:]
         kernel /= kernel.sum()
-        kernel = np.tile(kernel[None,None,:,:], (in_ch,1,1,1) )
+        kernel = np.tile(kernel[None,None,:,:], (in_ch,1,1,1) ).astype(np.float32)
 
-        self.register_buffer('_kernel', torch.Tensor(kernel))
+        self.register_buffer('_kernel', torch.tensor(kernel))
 
     def forward(self, inp):
         x = F.pad(inp, self._pad_sizes, 'constant', value=0)

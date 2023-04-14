@@ -373,6 +373,16 @@ _id_to_string_dict = {
         'ru' : 'Базовая размерность',
     },
     
+    'QxModel.Generalization_level' : {
+        'en' : 'Generalization level',
+        'ru' : 'Уровень обобщения',
+    },
+    
+    'QxModel.Stage' : {
+        'en' : 'Stage',
+        'ru' : 'Стадия',
+    },
+
     'QxModel.UNet_mode' : {
         'en' : 'U-Net mode',
         'ru' : 'U-Net режим',

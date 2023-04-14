@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 
+from common.SSI import MxSSI
 from core import ax, mx
 from core.lib import path as lib_path
 from core.lib.image import NPImage, Patcher
@@ -53,7 +54,7 @@ class MxPreview(mx.Disposable):
         super().__init__()
         self._state = state = state or {}
         state['directory_state'] = state.get('directory_state', {})
-        
+
         self._main_thread = ax.get_current_thread()
         self._sub_thread = ax.Thread().dispose_with(self)
 
@@ -62,7 +63,7 @@ class MxPreview(mx.Disposable):
         self._imagespaths = []
 
         self._mx_error = mx.TextEmitter().dispose_with(self)
-        self._mx_sample = mx.Property[MxPreview.Sample|None]( MxPreview.Sample.from_state(sample_state) if (sample_state := state.get('sample_state', None)) is not None else None ).dispose_with(self)
+        self._mx_ssi_sheet = mx.Property[MxSSI.Sheet]( MxSSI.Sheet.from_state(ssi_sheet_state) if (ssi_sheet_state := state.get('ssi_sheet_state', None)) is not None else MxSSI.Sheet() ).dispose_with(self)
 
         self._source_type_disp_bag = mx.Disposable().dispose_with(self)
         self._mx_source_type = mx.SingleChoice[MxPreview.SourceType](None,  avail=lambda: [*MxPreview.SourceType],
@@ -77,9 +78,9 @@ class MxPreview(mx.Disposable):
     def mx_error(self) -> mx.ITextEmitter_r:
         return self._mx_error
     @property
-    def mx_sample(self) -> mx.IProperty_r[Sample|None]:
-        """Current preview sample."""
-        return self._mx_sample
+    def mx_ssi_sheet(self) -> mx.IProperty_r[MxSSI.Sheet]:
+        """Current SSI sheet"""
+        return self._mx_ssi_sheet
     @property
     def mx_source_type(self) -> mx.ISingleChoice[SourceType]: return self._mx_source_type
     @property
@@ -122,14 +123,18 @@ class MxPreview(mx.Disposable):
                                                                      grayscale=model.get_input_ch()==1))
         if data_gen_task.succeeded:
             gen_result = data_gen_task.result
-            
+
             yield ax.wait(step_task := model.step(MxModel.StepRequest(image_np=gen_result.image_np, pred_mask=True)))
 
             if step_task.succeeded:
-                self._mx_sample.set(MxPreview.Sample(   image_np       = gen_result.image_np[0],
-                                                        target_mask_np = gen_result.target_mask_np[0],
-                                                        pred_mask_np   = step_task.result.pred_mask_np[0],
-                                                        name           = gen_result.image_paths[0].name ))
+                step_task_result = step_task.result
+                sections = {'' : MxSSI.Grid( {  (0,0) : MxSSI.Image(image=gen_result.image_np[0], caption=gen_result.image_paths[0].name),
+                                                (0,1) : MxSSI.Image(image=gen_result.target_mask_np[0] if gen_result.target_mask_np is not None else None, caption='@(QxPreview.Target_mask)'),
+                                                (0,2) : MxSSI.Image(image=step_task_result.pred_mask_np[0] if step_task_result.pred_mask_np is not None else None, caption='@(QxPreview.Predicted_mask)') } )
+                                }
+
+                self._mx_ssi_sheet.set(MxSSI.Sheet(sections=sections))
+
             else:
                 yield ax.cancel(step_task.error)
         else:
@@ -179,10 +184,10 @@ class MxPreview(mx.Disposable):
 
         self._mx_sample_count = mx.Number(self._state['directory_state'].get('sample_count', 2), mx.NumberConfig(min=1, max=4)).dispose_with(self._directory_disp_bag)
         self._mx_sample_count.listen(lambda _: self._infer_directory_sample())
-        
+
         self._mx_fix_borders = mx.Flag(self._state['directory_state'].get('fix_borders', False)).dispose_with(self._directory_disp_bag)
         self._mx_fix_borders.listen(lambda _: self._infer_directory_sample())
-        
+
         self._infer_directory_sample()
 
         return True
@@ -219,7 +224,7 @@ class MxPreview(mx.Disposable):
                 patcher = Patcher(image_np, model.get_input_resolution(), sample_count=sample_count, use_padding=fix_borders)
 
                 for i in range(patcher.patch_count):
-                    
+
                     yield ax.wait(step_task := model.step(MxModel.StepRequest(image_np=[patcher.get_patch(i)], pred_mask=True)))
 
                     if step_task.succeeded:
@@ -242,13 +247,10 @@ class MxPreview(mx.Disposable):
         yield ax.switch_to(self._main_thread)
 
         if err is None:
-            sample = MxPreview.Sample(  image_np=image_np,
-                                        target_mask_np=None,
-                                        pred_mask_np=pred_mask_np,
-                                        name = imagepath.name,
-                                        )
+            sections = {'' : MxSSI.Grid( {  (0,0) : MxSSI.Image(image=image_np, caption=imagepath.name),
+                                            (0,1) : MxSSI.Image(image=pred_mask_np, caption='@(QxPreview.Predicted_mask)'), } ) }
 
-            self._mx_sample.set(sample)
+            self._mx_ssi_sheet.set(MxSSI.Sheet(sections=sections))
         else:
             self._mx_error.emit(str(err))
             yield ax.cancel(error=err)
@@ -256,7 +258,7 @@ class MxPreview(mx.Disposable):
     def get_state(self) -> dict:
         # Also updates current state in order to save nested controls
         d = self._state
-        d['sample_state'] = sample.get_state() if (sample := self._mx_sample.get()) else None
+        d['ssi_sheet_state'] = self._mx_ssi_sheet.get().get_state()
         d['source_type'] = self._mx_source_type.get().value
 
         if self._mx_source_type.get() == MxPreview.SourceType.Directory:

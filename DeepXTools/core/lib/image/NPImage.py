@@ -254,11 +254,13 @@ class NPImage:
         H,W,C = (img := self._img).shape
         return NPImage(cv2.GaussianBlur(img, (0,0), sigma).reshape(H,W,C))
 
-    def blend(self, other : NPImage, mask : NPImage) -> NPImage:
+    def blend(self, other : NPImage, mask : NPImage, alpha = 1.0) -> NPImage:
         """
-        Pixel-wise blending `self*(1-mask) + other*mask`
+        Pixel-wise blending `self*(1-mask*alpha) + other*mask*alpha`
 
         Image will be forced to f32.
+        
+            alpha  [0.0 ... 1.0]
         """
         if self.dtype == np.uint8:
             self.f32()._img
@@ -269,7 +271,7 @@ class NPImage:
         other = other.f32()._img
         mask = mask.f32()._img
 
-        return NPImage( _nb_blend_f32(img, other, mask) )
+        return NPImage( _nb_blend_f32(img, other, mask, alpha) )
 
     def box_sharpen(self, kernel_size : int, power : float) -> NPImage:
         """
@@ -589,7 +591,7 @@ def _nb_levels_f32(in_out, in_b, in_w, in_g, out_b, out_w):
     return in_out
 
 @nb.njit(nogil=True)
-def _nb_blend_f32(in_out, other, mask):
+def _nb_blend_f32(in_out, other, mask, alpha : float):
     H,W,C = in_out.shape
     bH,bW,bC = other.shape
     mH,mW,mC = mask.shape
@@ -601,7 +603,7 @@ def _nb_blend_f32(in_out, other, mask):
                 b = other[h % bH, w % bW, c % bC]
                 m = mask[h % mH, w % mW, c % mC]
 
-                in_out[h,w,c] = max(0.0, min(1.0, a*(1-m) + b*m))
+                in_out[h,w,c] = max(0.0, min(1.0, a*(1-(m*alpha) ) + b*(m*alpha) ))
 
     return in_out
 

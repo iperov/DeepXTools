@@ -446,28 +446,25 @@ class MxModel(mx.Disposable):
             losses = []
 
             if  (target_mask_t := get_target_mask_t()) is not None and \
-                (target_mask_u_t := get_target_mask_u_t()) is not None and \
-                (pred_mask_t := get_pred_mask_t()) is not None and \
+                (pred_mask_t := get_pred_mask_t()) is not None:
+
+                if (mse_power := req.mse_power) != 0.0:
+                    losses.append( torch.mean(mse_power*10*torch.square(pred_mask_t-target_mask_t), (1,2,3)) )
+            
+            if (target_mask_u_t := get_target_mask_u_t()) is not None and \
                 (pred_mask_u_t := get_pred_mask_u_t()) is not None:
+            
+                if (dssim_x4_power := req.dssim_x4_power) != 0.0:
+                    losses.append( dssim_x4_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=lib_math.next_odd(resolution//4), use_padding=False).mean([-1]) )
 
-                    if (mse_power := req.mse_power) != 0.0:
-                        losses.append( torch.mean(mse_power*10*torch.square(pred_mask_t-target_mask_t), (1,2,3)) )
+                if (dssim_x8_power := req.dssim_x8_power) != 0.0:
+                    losses.append( dssim_x8_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=lib_math.next_odd(resolution//8), use_padding=False).mean([-1]) )
 
-                    if (dssim_x4_power := req.dssim_x4_power) != 0.0:
-                        kernel_size = lib_math.next_odd(resolution//4)
-                        losses.append( dssim_x4_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+                if (dssim_x16_power := req.dssim_x16_power) != 0.0:
+                    losses.append( dssim_x16_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=lib_math.next_odd(resolution//16), use_padding=False).mean([-1]) )
 
-                    if (dssim_x8_power := req.dssim_x8_power) != 0.0:
-                        kernel_size = lib_math.next_odd(resolution//8)
-                        losses.append( dssim_x8_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
-
-                    if (dssim_x16_power := req.dssim_x16_power) != 0.0:
-                        kernel_size = lib_math.next_odd(resolution//16)
-                        losses.append( dssim_x16_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
-
-                    if (dssim_x32_power := req.dssim_x32_power) != 0.0:
-                        kernel_size = lib_math.next_odd(resolution//32)
-                        losses.append( dssim_x32_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=kernel_size, use_padding=False).mean([-1]) )
+                if (dssim_x32_power := req.dssim_x32_power) != 0.0:
+                    losses.append( dssim_x32_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=lib_math.next_odd(resolution//32), use_padding=False).mean([-1]) )
 
             loss_t = None
             if len(losses) != 0:

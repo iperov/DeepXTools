@@ -282,7 +282,27 @@ _id_to_string_dict = {
         'en' : 'Mask deform intensity',
         'ru' : 'Интенсивность деформации маски',
     },
-
+    
+    'QxDataGenerator.Border_type' : {
+        'en' : 'Border type',
+        'ru' : 'Тип границы',
+    },
+    
+    'QxDataGenerator.Border_type.CONSTANT' : {
+        'en' : 'Constant',
+        'ru' : 'Постоянный',
+    },
+    
+    'QxDataGenerator.Border_type.REFLECT' : {
+        'en' : 'Reflect',
+        'ru' : 'Отражённый',
+    },
+    
+    'QxDataGenerator.Border_type.REPLICATE' : {
+        'en' : 'Replicate',
+        'ru' : 'Скопированный',
+    },
+    
     'QxDataGenerator.Flip' : {
         'en' : 'Flip',
         'ru' : 'Отразить',

@@ -133,7 +133,17 @@ class QxDataGenerator(qx.QVBox):
                         .add(qx.QLabel().set_text('@(QxDataGenerator.Mask_deform_intensity)'), align=qx.Align.RightF, col_span=1)
                         .add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_mask_deform_intensity))
                     .grid(), align=qx.Align.RightF )
-
+        
+        holder.add_spacer(8)
+        holder.add( qx.QGrid().set_spacing(1).v_compact().row(0)
+                        .add(qx.QLabel().set_text('@(QxDataGenerator.Border_type)'), align=qx.Align.RightF, col_span=1)
+                        .add(qx.QComboBoxMxSingleChoice(data_gen.mx_border_type, 
+                                                        stringifier=lambda val: {   MxDataGenerator.BorderType.CONSTANT: '@(QxDataGenerator.Border_type.CONSTANT)',
+                                                                                    MxDataGenerator.BorderType.REFLECT: '@(QxDataGenerator.Border_type.REFLECT)',
+                                                                                    MxDataGenerator.BorderType.REPLICATE: '@(QxDataGenerator.Border_type.REPLICATE)',
+                                                                                    }[val] ))
+                    
+                    .grid(), align=qx.Align.RightF )
 
     @ax.task
     def _gen_preview_task(self, tg : ax.TaskGroup, holder : qx.QVBox):

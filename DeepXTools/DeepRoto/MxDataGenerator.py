@@ -26,7 +26,9 @@ class MxDataGenerator(mx.Disposable):
     class OutputType(Enum):
         Image_n_Mask = auto()
         Image_n_ImageGrayscaled = auto()
-    
+
+    BorderType = NPImage.Border
+
     @dataclass
     class GenResult:
         batch_size : int
@@ -36,11 +38,11 @@ class MxDataGenerator(mx.Disposable):
         target_mask_paths : List[Path]
         image_np : List[NPImage]
         target_mask_np : List[NPImage]
-        
+
     def __init__(self,  default_rnd_flip : bool = True,
                         state : dict = None):
         super().__init__()
-        
+
         self._main_thread = ax.get_current_thread()
         self._tg = ax.TaskGroup().dispose_with(self)
         self._ds_tg = ax.TaskGroup().dispose_with(self)
@@ -57,7 +59,7 @@ class MxDataGenerator(mx.Disposable):
         self._reloading = False
 
         state = state or {}
-        
+
         self._mx_error = mx.TextEmitter().dispose_with(self)
         self._mx_image_ds_ref_list = MxImageDSRefList(state=state.get('image_ds_ref_list', None)).dispose_with(self)
 
@@ -79,15 +81,20 @@ class MxDataGenerator(mx.Disposable):
         self._mx_transform_intensity = mx.Number(state.get('transform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
         self._mx_image_deform_intensity = mx.Number(state.get('image_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
         self._mx_image_deform_intensity.listen(lambda v: self._mx_mask_deform_intensity.set(v) if self._mx_mask_deform_intensity.get() > v else ... )
-        self._mx_mask_deform_intensity = mx.Number(state.get('mask_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2), 
+        self._mx_mask_deform_intensity = mx.Number(state.get('mask_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2),
                                                     filter=lambda n,o: min(n, self._mx_image_deform_intensity.get())  ).dispose_with(self)
-        
+
         self._mx_rnd_levels_shift   = mx.Flag( state.get('rnd_levels_shift', False) ).dispose_with(self)
         self._mx_rnd_sharpen_blur   = mx.Flag( state.get('rnd_sharpen_blur', False) ).dispose_with(self)
         self._mx_rnd_glow_shade     = mx.Flag( state.get('rnd_glow_shade', False) ).dispose_with(self)
         self._mx_rnd_resize         = mx.Flag( state.get('rnd_resize', False) ).dispose_with(self)
         self._mx_rnd_jpeg_artifacts = mx.Flag( state.get('rnd_jpeg_artifacts', False) ).dispose_with(self)
-        
+
+        self._mx_border_type = mx.SingleChoice[MxDataGenerator.BorderType]( MxDataGenerator.BorderType(state.get('border_type', MxDataGenerator.BorderType.CONSTANT.value)),
+                                                                            avail=lambda: [x for x in [ MxDataGenerator.BorderType.CONSTANT,
+                                                                                                        MxDataGenerator.BorderType.REFLECT,
+                                                                                                        MxDataGenerator.BorderType.REPLICATE]]).dispose_with(self)
+
         self.reload()
 
     @property
@@ -160,6 +167,10 @@ class MxDataGenerator(mx.Disposable):
     def mx_rnd_jpeg_artifacts(self) -> mx.IFlag:
         return self._mx_rnd_jpeg_artifacts
     @property
+    def mx_border_type(self) -> mx.SingleChoice[BorderType]:
+        return self._mx_border_type
+
+    @property
     def workers_count(self) -> int: return self._job_thread_pool.count
 
     def get_state(self) -> dict:
@@ -187,6 +198,8 @@ class MxDataGenerator(mx.Disposable):
                 'rnd_glow_shade'     : self._mx_rnd_glow_shade.get(),
                 'rnd_resize'         : self._mx_rnd_resize.get(),
                 'rnd_jpeg_artifacts' : self._mx_rnd_jpeg_artifacts.get(),
+
+                'border_type' : self._mx_border_type.get().value,
                 }
 
     @ax.protected_task
@@ -294,6 +307,8 @@ class MxDataGenerator(mx.Disposable):
         rnd_resize          = self._mx_rnd_resize.get()
         rnd_jpeg_artifacts  = self._mx_rnd_jpeg_artifacts.get()
 
+        border_type = self._mx_border_type.get()
+
         yield ax.switch_to(self._job_thread_pool)
 
         out_image_paths = []
@@ -352,7 +367,7 @@ class MxDataGenerator(mx.Disposable):
                                                                     ty=offset_ty,
                                                                     scale=offset_scale,
                                                                     rot_deg=offset_rot_deg)
-                
+
                 transform_params=lib_aug.TransformParams(tx=nprnd.uniform(-rnd_tx_var, rnd_tx_var),
                                                          ty=nprnd.uniform(-rnd_ty_var, rnd_ty_var),
                                                          scale=nprnd.uniform(-rnd_scale_var, rnd_scale_var),
@@ -367,7 +382,7 @@ class MxDataGenerator(mx.Disposable):
                                                     rot_deg=nprnd.uniform(-rnd_rot_deg_var, rnd_rot_deg_var))
             geo_aug = lib_aug.Geo(offset_transform_params=offset_transform_params, transform_params=transform_params)
 
-            img  = geo_aug.transform(img, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=image_deform_intensity, )
+            img  = geo_aug.transform(img, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=image_deform_intensity, border=border_type)
             mask = geo_aug.transform(mask, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=mask_deform_intensity, )
 
             if rnd_flip and nprnd.randint(2) == 0:
@@ -402,5 +417,5 @@ class MxDataGenerator(mx.Disposable):
                                          image_np = out_image_np,
                                          target_mask_np = out_target_mask)
 
-    
+
 

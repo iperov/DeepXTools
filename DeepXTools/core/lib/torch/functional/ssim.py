@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from .gaussian import get_gaussian_kernel
+from .kernels import get_gaussian_kernel
 
 
 def ssim(img1_t : torch.Tensor, img2_t : torch.Tensor,
@@ -33,6 +33,5 @@ def ssim(img1_t : torch.Tensor, img2_t : torch.Tensor,
     den1 = F.conv2d( img1_t*img1_t + img2_t*img2_t, kernel_t, padding=kernel_padding, groups=C)
 
     cs = (num1 - num0 + c2) / (den1 - den0 + c2)
-
+    
     return torch.mean(luminance * cs, dim=[-2,-1])
-

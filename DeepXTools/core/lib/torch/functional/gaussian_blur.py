@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .gaussian import get_gaussian_kernel
+from .kernels import get_gaussian_kernel
 
 
 def gaussian_kernel(kernel_size : int, sigma : float, dtype=np.float32):

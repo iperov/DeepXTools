@@ -36,6 +36,16 @@ class NPImage:
         CUBIC = auto()
         LANCZOS4 = auto()
 
+    class Border(Enum):
+        CONSTANT = auto()
+        REFLECT = auto()
+        REPLICATE = auto()
+
+    @staticmethod
+    def _border_to_cv(border : Border):
+        return _cv_border[border]
+
+
     @staticmethod
     def avail_image_suffixes() -> List[str]:
         return ('.jpeg','.jpg','.jpe','.jp2','.png','.webp','.tiff','.tif')
@@ -259,7 +269,7 @@ class NPImage:
         Pixel-wise blending `self*(1-mask*alpha) + other*mask*alpha`
 
         Image will be forced to f32.
-        
+
             alpha  [0.0 ... 1.0]
         """
         if self.dtype == np.uint8:
@@ -400,7 +410,7 @@ class NPImage:
     def pad(self, pads : Sequence[int]) -> NPImage:
         """```
         pads per HWC axes
-        
+
         ( (PADT,PADB), (PADL, PADR), (PADC_before, PADC_after) )
         ```"""
         return NPImage(np.pad(self._img, pads))
@@ -414,14 +424,14 @@ class NPImage:
             return NPImage(img)
         return self
 
-    def remap(self, grid : np.ndarray, interp : Interp = Interp.LINEAR) -> NPImage:
+    def remap(self, grid : np.ndarray, interp : Interp = Interp.LINEAR, border : Border = Border.CONSTANT) -> NPImage:
         """```
             grid    HW2
         ```"""
         OH,OW,_ = grid.shape
 
         H,W,C = (img := self._img).shape
-        return NPImage(cv2.remap(img, grid, None, interpolation=_cv_inter[interp], borderMode=cv2.BORDER_CONSTANT ).reshape(OH,OW,C))
+        return NPImage(cv2.remap(img, grid, None, interpolation=_cv_inter[interp], borderMode=_cv_border[border] ).reshape(OH,OW,C))
 
     def warp_affine(self, mat, OW, OH, interp : Interp = Interp.LINEAR ) -> NPImage:
         """
@@ -442,7 +452,7 @@ class NPImage:
             img = self.f32().HWC()
         else:
             raise ValueError(f'Unsupported format {suffix}')
-        
+
         if format == 'webp':
             imencode_args = [int(cv2.IMWRITE_WEBP_QUALITY), quality]
         elif format == 'jpg':
@@ -451,36 +461,36 @@ class NPImage:
             imencode_args = [int(cv2.IMWRITE_JPEG2000_COMPRESSION_X1000), quality*10]
         else:
             imencode_args = []
-    
+
         ret, buf = cv2.imencode(suffix, img, imencode_args)
         if not ret:
             raise Exception(f'Unable to encode image to {suffix}')
 
         with open(path, "wb") as stream:
             stream.write( buf )
-            
-        
+
+
     def get_ls_hash64(self) -> LSHash64:
         """
         Calculates perceptual local-sensitive 64-bit hash of image
-        
+
         based on http://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
-        
+
         returns LSHash64
         """
         hash_size, highfreq_factor = 8, 4
-        
+
         img = self.grayscale().resize(hash_size * highfreq_factor, hash_size * highfreq_factor).f32().HW()
-        
+
         dct = cv2.dct(img)
-        
+
         dct_low_freq = dct[:hash_size, :hash_size]
         bits = ( dct_low_freq > np.median(dct_low_freq) ).reshape( (hash_size*hash_size,)).astype(np.uint64)
-        bits = bits << np.arange(len(bits), dtype=np.uint64)    
-        
+        bits = bits << np.arange(len(bits), dtype=np.uint64)
+
         return LSHash64(bits.sum())
-        
-    
+
+
     def __add__(self, value) -> NPImage:
         if isinstance(value, NPImage):
             value = value._img
@@ -555,6 +565,11 @@ _cv_inter = { NPImage.Interp.NEAREST : cv2.INTER_NEAREST,
               NPImage.Interp.CUBIC : cv2.INTER_CUBIC,
               NPImage.Interp.LANCZOS4 : cv2.INTER_LANCZOS4,
                }
+
+_cv_border = {NPImage.Border.CONSTANT : cv2.BORDER_CONSTANT,
+              NPImage.Border.REFLECT : cv2.BORDER_REFLECT,
+              NPImage.Border.REPLICATE : cv2.BORDER_REPLICATE,
+            }
 
 @functools.cache
 def _box_sharpen_kernel(kernel_size, power) -> np.ndarray:

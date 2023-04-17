@@ -198,10 +198,8 @@ def _gen_remap_grid(SW, SH, TW, TH,
 
 
     # Warp s_remap_grid to target space
-    if border == NPImage.Border.CONSTANT:
-        border = NPImage.Border.REPLICATE
-
-    t_remap_grid = cv2.warpAffine(s_remap_grid, t2s_mat, (TW,TH), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR, borderMode=NPImage._border_to_cv(border))
+    t_remap_grid = cv2.warpAffine(s_remap_grid, t2s_mat, (TW,TH), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR, 
+                                  borderMode=NPImage._border_to_cv(NPImage.Border.REPLICATE if border == NPImage.Border.CONSTANT else border))
 
     # make binary mask to refine image-boundary
     mask = cv2.warpAffine( np.ones( (SH,SW), dtype=np.uint8), t2s_mat, (TW,TH), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_NEAREST)[...,None]

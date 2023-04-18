@@ -11,6 +11,10 @@ class ProbIndexer1D:
 
         self.reset_probs()
 
+    @property
+    def size(self) -> int:
+        return self._size
+
     def reset_probs(self):
         self._probs = [1]*self._size
         self._probs_counters = [0]*self._size

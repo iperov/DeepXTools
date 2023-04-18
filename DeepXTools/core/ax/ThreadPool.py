@@ -26,7 +26,8 @@ class ThreadPool(mx.Disposable):
         self._threads = [ Thread(f'{name}_{i}' if name is not None else None).dispose_with(self) for i in range(count)]
 
     @property
-    def count(self) -> int: return self._count
+    def count(self) -> int: 
+        return self._count
 
     def _get_next_thread(self) -> Thread|None:
         """

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<title>Deep Roto documentation | DeepXTools</title>
+<meta name="description" content="Deep Roto documentation.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/pico.min.css">
+<title>DeepXTools</title>
+</head>
+<body>
+
+<main class="container">
+    
+<center><h2>Introduction</h2></center>
+
+<h4>What is Deep Roto for?</h4>
+
+With Deep Roto, you can train a mask for objects in an image sequence by segmenting just a few images, usually the most varied.<br>
+<br>
+You can also create "Generic" models that can be trained on a large dataset, and such a model will be able to process any similar data. For example, you can make an eye mask of 1000 different faces, and use a trained model to get an eye mask of any face without segmentation.<br>
+<br>
+<h4>What file types are supported?</h4>
+
+Basic image formats such as .jpeg .jpg .jpe .jp2 .png .webp .tiff .tif are supported.<br>
+<br>
+<h4>Does it support only binary mask?</h4>
+
+Deep Roto trainer supports mask data of float value inside range [0.0 ... 1.0]<br>
+<br>
+<h4>Does it support multiple masks with the same model?</h4>
+
+No. To train multiple masks with the same images, use separate models. You can train them simultaneously on different GPU's by running multiple instances of the Deep Roto app.<br>
+
+<br><br>
+<h4>What ways are there to create an image mask?</h4>
+
+You can create a mask in any suitable application you know, such as Photoshop. <br>
+However, working with a large number of images Photoshop is not convenient for this purpose.<br>
+You can use the <b>Mask Editor</b> to work conveniently with a large number of images. Also, <b>Mask Editor</b> can copy and paste a mask from the clipboard, so you can quickly transfer images and mask to and from Photoshop.<br>
+<b>Mask Editor</b> itself only supports drawing a binary mask using polygons.<br>
+In Photoshop you can use quick object selection to accelerate the process.<br>
+
+<br><br>
+<h4>How to localize an object from a video?</h4>
+
+There are several approaches, using video editors such as After Effects.<br>
+( to be updated )<br>
+
+<br><br>
+<h4>Why AMD cards are not supported?</h4>
+
+At the moment AMD is more specialized on Machine Learning for Linux.<br>
+They do not have an adequate solution for Windows.<br>
+Deep Roto uses Pytorch library to train neural networks. Pytorch has only DirectML backend to run on AMD cards, but at the moment this solution is very raw and has many bugs, so officially this approach is not supported yet.<br>
+
+<br><br>
+<center><h2>Basic Deep Roto pipeline</h2></center>
+
+<br>
+First you need to extract the image-sequence from the video. 
+<br><br>
+If your goal is a small object, or you want maximum quality, it is best to localize the object into a square.
+<br>
+<img src="images/deeproto_doc/localize_object.png">
+<br>
+For large objects, such as landscapes, you can use source frames.
+<br><br>
+Export PNG sequence to directory inside DeepXTools, for example \data\wheel_seq
+<br>
+<img src="images/deeproto_doc/image_sequence.png">
+<br><br>
+In <b>Mask Editor</b>. Open data\wheel_seq.
+<br>
+Sort by "Perceptual Dissimilarity"
+<br>
+<img src="images/deeproto_doc/perceptual_dissimilarity.png">
+<br>
+At the beginning will be the images most dissimilar any other.
+<br><br>
+Create mask with name "mask" and select it.
+<br>
+<img src="images/deeproto_doc/create_mask.png">
+<br><br>
+Mask few images.
+<br>
+<img src="images/deeproto_doc/mask_few_images.png">
+<br><br>
+Use "Force save mask" to mark (few!) images on which the mask should not appear.
+<br>
+<img src="images/deeproto_doc/force_save_mask.png">
+<br><br>
+
+In <b>Deep Roto</b>.<br>
+Create new project in save directory.<br>
+<img src="images/deeproto_doc/new_project.png"><br>
+<br>
+
+In <b>Data Generator</b>. Add data path and choose mask.<br>
+<img src="images/deeproto_doc/data_path.png"><br>
+
+...\wheel_seq should contains such images:<br>
+<img src="images/deeproto_doc/wheel_seq_contains.png"><br>
+...\wheel_seq_mask should contains such images:<br>
+<img src="images/deeproto_doc/wheel_seq_mask_contains.png"><br>
+
+<br>
+<b>Data Generator</b> mode: fit or patch?<br>
+If target is particular object or object is centered in images, you should use mode <b>Fit</b><br>
+
+<img src="images/deeproto_doc/mode_fit.png"><br>
+If pixel-perfect mask of object is required or object is large (such as sky), you should use mode <b>Patch</b><br>
+<img src="images/deeproto_doc/mode_patch.png"><br>
+
+<br>
+Adjust augmentations according your dataset.<br>
+
+<table>
+    <thead>
+      <tr>
+        <th scope="col" style="width:20%; text-align:center;">Static displacements</th>
+        <th scope="col" style="width:20%; text-align:center;">Random displacements</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><center><img src="images/deeproto_doc/static_displacements.png"></center></td>
+        <td><center><img src="images/deeproto_doc/random_displacements.png"></center></td>
+        <td></td>
+      </tr>
+    </tbody>
+</table>
+
+<table>
+    <thead>
+      <tr>
+        <th scope="col" style="width:20%; text-align:center;">Displacement modifier</th>
+        <th scope="col" style="width:20%; text-align:center;">Deform modifier</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><center><img src="images/deeproto_doc/displacement_modifier.png"></center></td>
+        <td><center><img src="images/deeproto_doc/deform_modifier.png"></center></td>
+        <td></td>
+      </tr>
+    </tbody>
+</table>
+
+<table>
+    <thead>
+      <tr>
+        <th scope="col" style="width:20%; text-align:center;">Deform 0.0</th>
+        <th scope="col" style="width:20%; text-align:center;">Deform 1.0</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><center><img src="images/deeproto_doc/deform_0.0.png"></center></td>
+        <td><center><img src="images/deeproto_doc/deform_1.0.png"></center></td>
+        <td></td>
+      </tr>
+    </tbody>
+</table>
+
+<table>
+    <thead>
+      <tr>
+        <th scope="col" style="width:20%; text-align:center;">Other augmentations</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><center><img src="images/deeproto_doc/other_augmentations.png"></center></td>
+        <td></td>
+      </tr>
+    </tbody>
+</table>
+
+Displacements + Deform + Augmentations
+<table>
+    <thead>
+      <tr>
+        <th scope="col" style="width:20%; text-align:center;">More</th>
+        <th scope="col" style="width:20%; text-align:center;">Less</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><center></center>slower training<br><br>more CPU usage for data generation<br><br>better generalization</td>
+        <td><center></center>faster training<br><br>less CPU usage for data generation<br><br>worse generalization</td>
+        <td></td>
+      </tr>
+    </tbody>
+</table>
+
+<br>
+What the goal?<br>
+Show the network the outermost samples so it can interpolate.<br>
+<img src="images/deeproto_doc/network_input_predict.png"><br>
+<br>
+Start training with standard settings and <b>Generalization level 6</b>.<br>
+<img src="images/deeproto_doc/standard_settings.png"><br>
+<br>
+Decrease <b>Generalization level</b> by 1 every 10.000 iterations, depends on dataset complexity.<br>
+<br>
+During training evaluate the samples in a preview.<br>
+<img src="images/deeproto_doc/evaluate_samples_in_preview.png"><br>
+<br>
+or export trained mask<br>
+<img src="images/deeproto_doc/export_mask.png"><br>
+<br>
+Find some samples that are predicted worse than the others and mask them.<br>
+<img src="images/deeproto_doc/find_and_mask.png"><br>
+<br>
+Reload during training so that the network begins to learn the changes.<br>
+<img src="images/deeproto_doc/reload.png"><br>
+<br>
+When the <b>Accuracy metric</b> reaches 0.98+<br>
+<img src="images/deeproto_doc/accuracy.png"><br>
+Decrease <b>Learning rate</b>. Increase <b>Batch size</b>.<br>
+<img src="images/deeproto_doc/batch_size.png"><br>
+If your Video Card does not handle higher <b>Batch size</b>, use <b>Batch accumulation</b><br>
+<br>
+When the <b>Accuracy metric</b> reaches 0.992+ and you are satisfied with the result, the training is <b>complete</b>.<br>
+<b>Export</b> trained_mask and use it for your further work.<br>
+
+</main>
+
+
+</body>
+</html>

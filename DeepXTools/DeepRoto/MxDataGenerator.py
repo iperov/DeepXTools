@@ -167,7 +167,7 @@ class MxDataGenerator(mx.Disposable):
     def mx_rnd_jpeg_artifacts(self) -> mx.IFlag:
         return self._mx_rnd_jpeg_artifacts
     @property
-    def mx_border_type(self) -> mx.SingleChoice[BorderType]:
+    def mx_border_type(self) -> mx.ISingleChoice[BorderType]:
         return self._mx_border_type
 
     @property

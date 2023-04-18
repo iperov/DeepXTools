@@ -10,10 +10,9 @@
 </head>
 <body>
 
+<article><header><center><h3>Introduction</h3></center></header>
 <main class="container">
-    
-<center><h2>Introduction</h2></center>
-
+        
 <h4>What is Deep Roto for?</h4>
 
 With Deep Roto, you can train a mask for objects in an image sequence by segmenting just a few images, usually the most varied.<br>
@@ -53,9 +52,10 @@ There are several approaches, using video editors such as After Effects.<br>
 At the moment AMD is more specialized on Machine Learning for Linux.<br>
 They do not have an adequate solution for Windows.<br>
 Deep Roto uses Pytorch library to train neural networks. Pytorch has only DirectML backend to run on AMD cards, but at the moment this solution is very raw and has many bugs, so officially this approach is not supported yet.<br>
+</main></article>
 
-<br><br>
-<center><h2>Basic Deep Roto pipeline</h2></center>
+<article><header><center><h3>Basic Deep Roto pipeline</h3></center></header>
+<main class="container">
 
 <br>
 First you need to extract the image-sequence from the video. 
@@ -230,8 +230,7 @@ If your Video Card does not handle higher <b>Batch size</b>, use <b>Batch accumu
 When the <b>Accuracy metric</b> reaches 0.992+ and you are satisfied with the result, the training is <b>complete</b>.<br>
 <b>Export</b> trained_mask and use it for your further work.<br>
 
-</main>
-
+</main></article>
 
 </body>
 </html>

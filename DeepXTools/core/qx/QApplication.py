@@ -65,7 +65,7 @@ class QApplication(QObject):
 
         QEvent2(q_app.focusChanged).dispose_with(self).listen(lambda old, new: self.__mx_focus_widget.set(new))
 
-        self.__mx_process_priority = mx.SingleChoice[ProcessPriority]( lib_os.ProcessPriority.NORMAL,
+        self.__mx_process_priority = mx.SingleChoice[ProcessPriority]( lib_os.ProcessPriority.IDLE,
                                                                                     avail=lambda: ProcessPriority,
                                                                                     filter=self._flt_mx_process_priority ).dispose_with(self)
         self.__mx_process_priority.set( lib_os.ProcessPriority(state.get('process_priority', lib_os.ProcessPriority.NORMAL.value)) )

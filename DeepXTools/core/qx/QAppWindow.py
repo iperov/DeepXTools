@@ -31,7 +31,7 @@ class QAppWindow(QWindow):
         lib_os.hide_console_window()
         
         app = QApplication.instance()
-        quit_func = lambda: (lib_os.show_console_window(), app.quit())
+        quit_func = lambda: (lib_os.show_console_window(), print('Exiting...'), app.quit())
         
         self.set_parent(app)
         self.mx_close.listen(lambda _: quit_func())

@@ -19,6 +19,7 @@ from core.lib import math as lib_math
 from core.lib import time as lib_time
 from core.lib import torch as lib_torch
 from core.lib.image import NPImage
+from core.lib.python import cache
 from core.lib.torch import functional as xF
 from core.lib.torch.init import xavier_uniform
 from core.lib.torch.modules import BlurPool
@@ -77,7 +78,7 @@ class MxModel(mx.Disposable):
         self._generalization_level = state.get('generalization_level', 0)
         self._iteration  = state.get('iteration', 0)
         self._opt_class = AdaBelief
-        
+
         n_downs = 6
 
         self._mx_info = mx.TextEmitter().dispose_with(self)
@@ -350,70 +351,30 @@ class MxModel(mx.Disposable):
         lr_dropout = req.lr_dropout
 
         train_mask  = req.target_mask_np is not None
-
         train_model = train_mask
 
-        model : XSegModel = ...
-        model_opt : Optimizer = ...
-
-        image_t : torch.Tensor = ...
-        target_mask_u_t : torch.Tensor = ...
-        target_mask_t : torch.Tensor = ...
-        pred_mask_t : torch.Tensor = ...
-        pred_mask_u_t : torch.Tensor = ...
-
+        @cache
+        def get_model_opt() -> Optimizer: return self._mod.get_module('model_opt', device=device)
+        @cache
         def get_model() -> XSegModel:
-            nonlocal model
-            nonlocal model_opt
-            if model is Ellipsis:
-                model = self._mod.get_module('model', device=device, train=train_model)
-                if train_model:
-                    if (iteration % batch_acc) == 0:
-                        model_opt = self._mod.get_module('model_opt', device=device)
-                        model_opt.zero_grad()
+            model = self._mod.get_module('model', device=device, train=train_model)
+            if train_model and (iteration % batch_acc) == 0:
+                get_model_opt().zero_grad()
             return model
 
         def model_forward(x) -> torch.Tensor:
             with torch.set_grad_enabled(train_model):
                 return get_model()(x)
-
-        def get_image_t() -> torch.Tensor|None:
-            nonlocal image_t
-            if image_t is Ellipsis:
-                image_t = torch.tensor(image_nd, device=device.device) if image_nd is not None else None
-            return image_t
-
-        def get_target_mask_u_t() -> torch.Tensor|None:
-            nonlocal target_mask_u_t
-            if target_mask_u_t is Ellipsis:
-                target_mask_u_t = torch.tensor(target_mask_nd, device=device.device) if target_mask_nd is not None else None
-            return target_mask_u_t
-
-        def get_target_mask_t() -> torch.Tensor|None:
-            nonlocal target_mask_t
-            if target_mask_t is Ellipsis:
-                target_mask_t = None
-                if (target_mask_u_t := get_target_mask_u_t()) is not None:
-                    target_mask_t = target_mask_u_t * 2.0 - 1.0
-            return target_mask_t
-
-        def get_pred_mask_t() -> torch.Tensor|None:
-            nonlocal pred_mask_t
-            if pred_mask_t is Ellipsis:
-                pred_mask_t = None
-                if (image_t := get_image_t()) is not None:
-                    pred_mask_t = model_forward(image_t)
-
-            return pred_mask_t
-
-        def get_pred_mask_u_t() -> torch.Tensor|None:
-            nonlocal pred_mask_u_t
-            if pred_mask_u_t is Ellipsis:
-                pred_mask_u_t = None
-                if (pred_mask_t := get_pred_mask_t()) is not None:
-                    pred_mask_u_t = pred_mask_t / 2.0 + 0.5
-
-            return pred_mask_u_t
+        @cache
+        def get_image_t() -> torch.Tensor|None: return torch.tensor(image_nd, device=device.device) if image_nd is not None else None
+        @cache
+        def get_target_mask_u_t() -> torch.Tensor|None: return torch.tensor(target_mask_nd, device=device.device) if target_mask_nd is not None else None
+        @cache
+        def get_target_mask_t() -> torch.Tensor|None: return target_mask_u_t * 2.0 - 1.0 if (target_mask_u_t := get_target_mask_u_t()) is not None else None
+        @cache
+        def get_pred_mask_t() -> torch.Tensor|None: return model_forward(image_t) if (image_t := get_image_t()) is not None else None
+        @cache
+        def get_pred_mask_u_t() -> torch.Tensor|None: return pred_mask_t / 2.0 + 0.5 if (pred_mask_t := get_pred_mask_t()) is not None else None
 
         image_nd = None
         target_mask_nd = None
@@ -450,10 +411,10 @@ class MxModel(mx.Disposable):
 
                 if (mse_power := req.mse_power) != 0.0:
                     losses.append( torch.mean(mse_power*10*torch.square(pred_mask_t-target_mask_t), (1,2,3)) )
-            
+
             if (target_mask_u_t := get_target_mask_u_t()) is not None and \
                 (pred_mask_u_t := get_pred_mask_u_t()) is not None:
-            
+
                 if (dssim_x4_power := req.dssim_x4_power) != 0.0:
                     losses.append( dssim_x4_power*xF.dssim(pred_mask_u_t, target_mask_u_t, kernel_size=lib_math.next_odd(resolution//4), use_padding=False).mean([-1]) )
 
@@ -480,12 +441,12 @@ class MxModel(mx.Disposable):
             if (iteration % batch_acc) == (batch_acc-1):
                 grad_mult = 1.0 / batch_acc
 
-                opts = [model_opt]
+                opts = [get_model_opt.get_cached() if get_model_opt.is_cached() else None]
                 for opt in opts:
-                    if opt is not Ellipsis:
+                    if opt is not None:
                         opt.step(iteration=iteration, grad_mult=grad_mult, lr=lr, lr_dropout=lr_dropout)
 
-                if any(opt is not Ellipsis for opt in opts):
+                if any(opt is not None for opt in opts):
                     self._iteration = iteration + 1
 
             # Metrics

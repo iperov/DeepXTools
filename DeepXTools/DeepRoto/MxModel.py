@@ -88,7 +88,7 @@ class MxModel(mx.Disposable):
         self._mx_resolution = mx.Number(self._resolution, config=mx.NumberConfig(min=64, max=1024, step=64)).dispose_with(self)
         self._mx_base_dim   = mx.Number(self._base_dim, config=mx.NumberConfig(min=16, max=256, step=8)).dispose_with(self)
         self._mx_generalization_level = mx.Number(self._generalization_level, config=mx.NumberConfig(min=0, max=n_downs, step=1)).dispose_with(self)
-        self._mx_url_download_menu = mx.Menu[str](avail_choices=lambda: ['https://github.com/iperov/DeepXTools/releases/download/DXRM_0/Luminance_256_32_UNet_from_ImageNet.dxrm'],
+        self._mx_url_download_menu = mx.Menu[str](avail_choices=lambda: [], #'https://github.com/iperov/DeepXTools/releases/download/DXRM_0/Luminance_256_32_UNet_from_ImageNet.dxrm'
                                          on_choose=lambda x: self._download_model_state(x)
                                          ).dispose_with(self)
 

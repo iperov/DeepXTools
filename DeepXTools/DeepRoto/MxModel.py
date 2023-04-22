@@ -368,8 +368,8 @@ class MxModel(mx.Disposable):
             if model is Ellipsis:
                 model = self._mod.get_module('model', device=device, train=train_model)
                 if train_model:
-                    model_opt = self._mod.get_module('model_opt', device=device)
                     if (iteration % batch_acc) == 0:
+                        model_opt = self._mod.get_module('model_opt', device=device)
                         model_opt.zero_grad()
             return model
 

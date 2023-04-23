@@ -1,4 +1,4 @@
 from .dssim import dssim
-from .gaussian_blur import gaussian_blur
-from .kernels import get_gaussian_kernel
+from .gaussian import gaussian_blur, get_gaussian_kernel
+from .sobel import sobel_edges_2d, get_sobel_kernel
 from .ssim import ssim

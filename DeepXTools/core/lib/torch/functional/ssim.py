@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from .kernels import get_gaussian_kernel
+from .gaussian import get_gaussian_kernel
 
 
 def ssim(img1_t : torch.Tensor, img2_t : torch.Tensor,

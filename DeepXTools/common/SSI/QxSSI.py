@@ -10,11 +10,15 @@ class QxSSI:
             super().__init__()
             self.set_row_stretch(0,1,1,0)
 
-            if ssi_image.image is not None:
+            if (image := ssi_image.image) is not None:
                 self.add( qx.QPixmapWidget().set_pixmap(qt.QPixmap_from_np(ssi_image.image.HWC())), 0, 0 )
 
             if ssi_image.caption is not None:
-                self.add( qx.QLabel().set_font(qx.Font.FixedWidth).set_text(ssi_image.caption), 1, 0, align=qx.Align.CenterH)
+                caption = ssi_image.caption
+                if image is not None:
+                    caption = f'{caption}\n({image.shape[1]}x{image.shape[0]})'
+
+                self.add( qx.QLabel().set_font(qx.Font.FixedWidth).set_align(qx.Align.CenterH).set_text(caption), 1, 0, align=qx.Align.CenterH)
 
     class Grid(qx.QGrid):
         def __init__(self, ssi_grid : MxSSI.Grid):

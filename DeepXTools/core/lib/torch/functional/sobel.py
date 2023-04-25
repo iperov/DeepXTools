@@ -35,7 +35,7 @@ def sobel_edges_2d(x : torch.Tensor, kernel_size=5):
     _, C, H, W = x.shape
         
     kernel_np = get_sobel_kernel(C, kernel_size=kernel_size)
-    kernel_t = torch.tensor(kernel_np)
+    kernel_t = torch.tensor(kernel_np, device=x.device)
     
     x_sobel = F.conv2d(F.pad(x, (kernel_size//2,)*4, mode='reflect'), kernel_t, stride=1, padding=0, groups=C)
     x_sobel = x_sobel.pow(2).sum(1, keepdim=True).sqrt()

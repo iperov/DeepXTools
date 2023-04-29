@@ -76,6 +76,8 @@ class MxModel(mx.Disposable):
         self._resolution = state.get('resolution', 256)
         self._base_dim   = state.get('base_dim', 32)
         self._generalization_level = state.get('generalization_level', 0)
+        self._mixed_precision = state.get('mixed_precision', False)
+
         self._iteration  = state.get('iteration', 0)
         self._opt_class = AdaBelief
 
@@ -88,6 +90,8 @@ class MxModel(mx.Disposable):
         self._mx_resolution = mx.Number(self._resolution, config=mx.NumberConfig(min=64, max=1024, step=64)).dispose_with(self)
         self._mx_base_dim   = mx.Number(self._base_dim, config=mx.NumberConfig(min=16, max=256, step=8)).dispose_with(self)
         self._mx_generalization_level = mx.Number(self._generalization_level, config=mx.NumberConfig(min=0, max=n_downs, step=1)).dispose_with(self)
+        self._mx_mixed_precision = mx.Flag(self._mixed_precision).dispose_with(self)
+
         self._mx_url_download_menu = mx.Menu[str](avail_choices=lambda: [], #'https://github.com/iperov/DeepXTools/releases/download/DXRM_0/Luminance_256_32_UNet_from_ImageNet.dxrm'
                                          on_choose=lambda x: self._download_model_state(x)
                                          ).dispose_with(self)
@@ -118,6 +122,9 @@ class MxModel(mx.Disposable):
     def mx_generalization_level(self) -> mx.INumber:
         return self._mx_generalization_level
     @property
+    def mx_mixed_precision(self) -> mx.IFlag:
+        return self._mx_mixed_precision
+    @property
     def mx_url_download_menu(self) -> mx.IMenu[str]:
         return self._mx_url_download_menu
 
@@ -136,6 +143,7 @@ class MxModel(mx.Disposable):
                 'resolution'   : self._resolution,
                 'base_dim'     : self._base_dim,
                 'generalization_level' : self._generalization_level,
+                'mixed_precision'  : self._mixed_precision,
                 'mm_state'     : self._mod.get_state(), }
 
     def get_input_resolution(self) -> int: return self._resolution
@@ -152,6 +160,7 @@ class MxModel(mx.Disposable):
         new_resolution     = self._mx_resolution.get()
         new_base_dim       = self._mx_base_dim.get()
         new_generalization_level = self._mx_generalization_level.get()
+        new_mixed_precision  = self._mx_mixed_precision.get()
 
         yield ax.switch_to(self._model_thread)
 
@@ -162,6 +171,7 @@ class MxModel(mx.Disposable):
         resolution, self._resolution = self._resolution, new_resolution
         base_dim, self._base_dim = self._base_dim, new_base_dim
         generalization_level, self._generalization_level = self._generalization_level, new_generalization_level
+        mixed_precision, self._mixed_precision = self._mixed_precision, new_mixed_precision
 
         reset_model = (resolution != new_resolution or base_dim != new_base_dim) or (input_type != new_input_type)
 
@@ -187,6 +197,7 @@ class MxModel(mx.Disposable):
         resolution  = self._resolution
         base_dim    = self._base_dim
         generalization_level = self._generalization_level
+        mixed_precision  = self._mixed_precision
 
         yield ax.switch_to(self._main_thread)
 
@@ -195,6 +206,7 @@ class MxModel(mx.Disposable):
         self._mx_resolution.set(resolution)
         self._mx_base_dim.set(base_dim)
         self._mx_generalization_level.set(generalization_level)
+        self._mx_mixed_precision.set(mixed_precision)
 
     ######################################
     ### RESET / IMPORT / EXPORT / DOWNLOAD
@@ -344,14 +356,7 @@ class MxModel(mx.Disposable):
     def step(self, req : StepRequest) -> StepResult:
         yield ax.attach_to(self._tg, detach_parent=False)
 
-        result = MxModel.StepResult()
 
-        batch_acc  = req.batch_acc
-        lr         = req.lr
-        lr_dropout = req.lr_dropout
-
-        train_mask  = req.target_mask_np is not None
-        train_model = train_mask
 
         @cache
         def get_model_opt() -> Optimizer: return self._mod.get_module('model_opt', device=device)
@@ -364,7 +369,8 @@ class MxModel(mx.Disposable):
 
         def model_forward(x) -> torch.Tensor:
             with torch.set_grad_enabled(train_model):
-                return get_model()(x)
+                with torch.autocast(device_type=device.backend, enabled=mixed_precision):
+                    return get_model()(x)
         @cache
         def get_image_t() -> torch.Tensor|None: return torch.tensor(image_nd, device=device.device) if image_nd is not None else None
         @cache
@@ -375,6 +381,8 @@ class MxModel(mx.Disposable):
         def get_pred_mask_t() -> torch.Tensor|None: return model_forward(image_t) if (image_t := get_image_t()) is not None else None
         @cache
         def get_pred_mask_u_t() -> torch.Tensor|None: return pred_mask_t / 2.0 + 0.5 if (pred_mask_t := get_pred_mask_t()) is not None else None
+
+        result = MxModel.StepResult()
 
         image_nd = None
         target_mask_nd = None
@@ -399,8 +407,17 @@ class MxModel(mx.Disposable):
                 # Prepared data matches model parameters.
                 break
 
+        batch_acc  = req.batch_acc
+        lr         = req.lr
+        lr_dropout = req.lr_dropout
+
+        train_mask  = req.target_mask_np is not None
+        train_model = train_mask
+
         iteration = self._iteration
         device = self._device
+        mixed_precision = self._mixed_precision
+
         step_time = lib_time.measure()
         try:
             # Collect losses

@@ -19,7 +19,7 @@ from core.lib import math as lib_math
 from core.lib import time as lib_time
 from core.lib import torch as lib_torch
 from core.lib.image import NPImage
-from core.lib.python import cache
+from core.lib.python import cache, OptionalContext
 from core.lib.torch import functional as xF
 from core.lib.torch.init import xavier_uniform
 from core.lib.torch.modules import BlurPool
@@ -356,7 +356,7 @@ class MxModel(mx.Disposable):
     def step(self, req : StepRequest) -> StepResult:
         yield ax.attach_to(self._tg, detach_parent=False)
 
-
+        
 
         @cache
         def get_model_opt() -> Optimizer: return self._mod.get_module('model_opt', device=device)
@@ -369,7 +369,7 @@ class MxModel(mx.Disposable):
 
         def model_forward(x) -> torch.Tensor:
             with torch.set_grad_enabled(train_model):
-                with torch.autocast(device_type=device.backend, enabled=mixed_precision):
+                with OptionalContext(lambda: torch.autocast(device_type=device.backend), enabled=mixed_precision and device.backend in ['cpu','cuda']):
                     return get_model()(x)
         @cache
         def get_image_t() -> torch.Tensor|None: return torch.tensor(image_nd, device=device.device) if image_nd is not None else None

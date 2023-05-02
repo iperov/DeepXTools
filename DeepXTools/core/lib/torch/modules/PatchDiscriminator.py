@@ -3,14 +3,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ...python import cache
 from ..init import xavier_uniform
 
 
 class PatchDiscriminator(nn.Module):
-    def __init__(self, in_ch : int, patch_size : int, base_dim=32, max_layers=5):
+    def __init__(self, in_ch : int, patch_size : int, base_dim=32, max_downs=5):
         super().__init__()
 
-        layers = PatchDiscriminator._find_archi(patch_size, max(1, max_layers))
+        layers = find_archi(patch_size, max_downs=max_downs)
 
         layers_count = len(layers)
 
@@ -63,52 +64,73 @@ class PatchDiscriminator(nn.Module):
             logits.append( logit(x) )
 
         return logits
-
+    
     @staticmethod
-    def _find_archi(patch_size, max_layers=5):
-        """
-        """
-        def calc_receptive_field_size(layers):
-            rf = 0
-            ts = 1
-            for i, (k, s) in enumerate(layers):
-                if i == 0:
-                    rf = k
-                else:
-                    rf += (k-1)*ts
-                ts *= s
-            return rf
+    def get_max_patch_size(max_downs=5): return max(list(get_table(max_downs).keys()))
 
-        def gen(layers : int):
-            for ks in [3,5,7]:
-                for s in [1,2]:
-                    if layers > 1:
-                        for sub in gen(layers-1):
-                            yield ((ks, s),) +sub
-                    else:
-                        yield ( (ks, s), )
-        d = {}
-        for layers_count in range(1,max_layers+1):
 
-            for layers in gen(layers_count):
+@cache
+def get_table(max_downs):
+    def calc_receptive_field_size(layers):
+        rf = 0
+        ts = 1
+        for i, (k, s) in enumerate(layers):
+            if i == 0:
+                rf = k
+            else:
+                rf += (k-1)*ts
+            ts *= s
+        return rf
+    
+    
+    def gen(layer_count : int, layer_id : int = 0):
+        if layer_id == layer_count:
+            yield ()
+        else:
+            k_gen = [3,5,7]
+            s_gen = [1,2]
+            for ks in k_gen:
+                for s in s_gen:
+                    for sub in gen(layer_count, layer_id+1):
+                        yield ((ks, s),) + sub
+                        
+    d = {}
+    for layers_count in range(1,max(1,max_downs)+1):
+        for layers in gen(layers_count):
 
-                ks_sum = 0
-                s_sum = 0
-                for ks, s in layers:
-                    ks_sum += ks
-                    s_sum += s
+            ks_sum = 0
+            s_sum = 0
+            for ks, s in layers:
+                ks_sum += ks
+                s_sum += s
 
-                rf = calc_receptive_field_size(layers)
+            rf = calc_receptive_field_size(layers)
 
-                s_rf = d.get(rf, None)
-                if s_rf is None:
+            s_rf = d.get(rf, None)
+            if s_rf is None:
+                d[rf] = (layers, ks_sum, s_sum)
+            else:
+                if layers_count > len(s_rf[0]) or ks_sum <= s_rf[1] and s_sum >= s_rf[2]:
                     d[rf] = (layers, ks_sum, s_sum)
-                else:
-                    if layers_count > len(s_rf[0]) or \
-                    ks_sum <= s_rf[1] and s_sum >= s_rf[2]:
-                        d[rf] = (layers, ks_sum, s_sum)
+                    
+        
+    return { rf : info[0] for rf, info in d.items() }
+                
+    
+def find_archi(patch_size, max_downs=5):
+    """"""
+    table = get_table(max_downs)
+        
+    x = sorted(list(table.keys()))
+    q=x[np.abs(np.array(x)-patch_size).argmin()]
+    return table[q]
 
 
-        x = sorted(list(d.keys()))
-        q=x[np.abs(np.array(x)-patch_size).argmin()]
-        return d[q][0]
+# max_p = PatchDiscriminator.get_max_patch_size()
+# print('max ',  )
+
+# for i in range(1, max_p+1):
+#    print(f'{i} {_find_archi(i)}')
+
+# import code
+# code.interact(local=dict(globals(), **locals()))

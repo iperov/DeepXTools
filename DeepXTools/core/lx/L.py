@@ -9,6 +9,11 @@ _id_to_string_dict = {
     ##########
     ### COMMON
     ##########
+    'Auto':{
+        'en' : 'Auto',
+        'ru' : 'Авто',
+    },
+    
     'New':{
         'en' : 'New',
         'ru' : 'Новый',
@@ -82,6 +87,11 @@ _id_to_string_dict = {
     'Train' : {
         'en' : 'Train',
         'ru' : 'Тренировать',
+    },
+    
+    'Computing':{
+        'en' : 'Computing',
+        'ru' : 'Вычисление',
     },
 
     'Reveal_in_explorer':{
@@ -301,6 +311,11 @@ _id_to_string_dict = {
     'QxDataGenerator.Border_type.REPLICATE' : {
         'en' : 'Replicate',
         'ru' : 'Скопированный',
+    },
+    
+    'QxDataGenerator.Decrease_chance_similar' : {
+        'en' : 'Decrease chance of similar',
+        'ru' : 'Уменьшить шанс похожих',
     },
     
     'QxDataGenerator.Flip' : {

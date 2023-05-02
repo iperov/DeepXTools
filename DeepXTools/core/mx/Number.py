@@ -16,7 +16,8 @@ class NumberConfig:
     step : NumberType = 1
     decimals : int = 0
     read_only : bool = False
-
+    zero_is_auto : bool = False # hint for ViewController
+    
     def filter(self, new_value : NumberType, value : NumberType) -> NumberType:
         if self.read_only:
             return value

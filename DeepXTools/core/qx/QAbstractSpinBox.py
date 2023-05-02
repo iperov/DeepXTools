@@ -1,5 +1,6 @@
-from .. import mx, qt
+from .. import lx, mx, qt
 from ._helpers import q_init
+from .QApplication import QApplication
 from .QEvent import QEvent0
 from .QWidget import QWidget
 
@@ -22,6 +23,13 @@ class QAbstractSpinBox(QWidget):
     def set_read_only(self, r : bool):
         self.get_q_abstract_spin_box().setReadOnly(r)
         return self
+
+    def set_special_value_text(self, text : str|None):
+        if (disp := getattr(self, '_QAbstractSpinBox_svt_disp', None)) is not None:
+            disp.dispose()
+        self._QAbstractSpinBox_svt_disp = \
+            QApplication.instance().mx_language.reflect(lambda lang: self.get_q_abstract_spin_box().setSpecialValueText(lx.L(text, lang))).dispose_with(self)
+
 
 
 class _QAbstractSpinBoxImpl(qt.QAbstractSpinBox): ...

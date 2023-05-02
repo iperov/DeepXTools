@@ -17,6 +17,9 @@ class QDoubleSpinBoxMxNumber(QDoubleSpinBox):
             self.set_maximum(max)
         
         self.set_read_only(config.read_only)
+        
+        if config.zero_is_auto:
+            self.set_special_value_text('@(Auto)')
     
         self._conn = self.mx_value.listen(lambda value: self._on_spinbox_value(value))
 

@@ -87,7 +87,7 @@ class Geo:
         self._offset_transform_params = offset_transform_params
         self._transform_params = transform_params
         self._deform_transform_params = deform_transform_params
-        self._deform_grid_cell_count = self._rnd_state.randint(1,6)
+        self._deform_grid_cell_count = self._rnd_state.randint(3,8)
 
 
     def transform(self, img : NPImage,

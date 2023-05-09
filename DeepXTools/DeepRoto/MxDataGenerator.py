@@ -383,7 +383,7 @@ class MxDataGenerator(mx.Disposable):
             geo_aug = lib_aug.Geo(offset_transform_params=offset_transform_params, transform_params=transform_params)
 
             img  = geo_aug.transform(img, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=image_deform_intensity, border=border_type)
-            mask = geo_aug.transform(mask, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=mask_deform_intensity, )
+            mask = geo_aug.transform(mask, W, H, center_fit=mode == MxDataGenerator.Mode.Fit, transform_intensity=transform_intensity, deform_intensity=mask_deform_intensity, border=border_type if output_type == MxDataGenerator.OutputType.Image_n_ImageGrayscaled else NPImage.Border.CONSTANT)
 
             if rnd_flip and nprnd.randint(2) == 0:
                 img = img.h_flip()

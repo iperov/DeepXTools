@@ -52,7 +52,7 @@ class MxFileStateManager(mx.Disposable):
         self._on_close = on_close
         self._task_on_load = task_on_load
         self._task_get_state = task_get_state
-        
+
         self._rel_path : Path = None
 
         self._mx_state = mx.Property[MxFileStateManager.State](MxFileStateManager.State.Uninitialized).dispose_with(self)
@@ -90,12 +90,12 @@ class MxFileStateManager(mx.Disposable):
 
     def _on_path_open(self, path : Path) -> bool:
         self._state_path = path
-        self._reinitialize(path)
+        self._reinitialize(path, rel_path=path.parent)
         return True
 
     def _on_path_new(self, path : Path) -> bool:
         self._state_path = path
-        self._reinitialize()
+        self._reinitialize(rel_path=path.parent)
         return True
 
     def _on_path_rename(self, path : Path) -> bool:
@@ -146,7 +146,7 @@ class MxFileStateManager(mx.Disposable):
 
 
     @ax.task
-    def _reinitialize(self, state_path : Path|None = None):
+    def _reinitialize(self, state_path : Path|None = None, rel_path : Path = None):
         yield ax.switch_to(self._main_thread)
         yield ax.attach_to(self._tg, cancel_all=True)
 
@@ -162,9 +162,9 @@ class MxFileStateManager(mx.Disposable):
             try:
                 with open(state_path, 'rb') as file:
                     state = pickle.load(file)
-                    
-                self._rel_path = state_path.parent
-                    
+
+
+
                 state = self._repack_traverse(state, is_pack=False)
             except Exception as e:
                 err = e
@@ -172,6 +172,8 @@ class MxFileStateManager(mx.Disposable):
         yield ax.switch_to(self._main_thread)
 
         if err is None:
+            self._rel_path = rel_path
+
             if (task_on_load := self._task_on_load) is not None:
                 yield ax.wait(load_t := task_on_load(state.get('user_state', {})))
 

@@ -77,9 +77,9 @@ class Geo:
         self._rnd_state = np.random.RandomState()
 
         if deform_transform_params is None:
-            deform_transform_params = TransformParams.generate( tx_var = 0.0,
-                                                                ty_var = 0.0,
-                                                                scale_var = 0.2,
+            deform_transform_params = TransformParams.generate( tx_var = 0.02,
+                                                                ty_var = 0.02,
+                                                                scale_var = 0.02,
                                                                 rot_deg_var = 180.0,
                                                                 rnd_state=self._rnd_state)
 
@@ -87,7 +87,7 @@ class Geo:
         self._offset_transform_params = offset_transform_params
         self._transform_params = transform_params
         self._deform_transform_params = deform_transform_params
-        self._deform_grid_cell_count = self._rnd_state.randint(3,8)
+        self._deform_grid_cell_count = self._rnd_state.randint(5,8)
 
 
     def transform(self, img : NPImage,

@@ -18,11 +18,12 @@ def get_gaussian_kernel(ch, kernel_size : int, sigma : float, dtype=np.float32) 
     return np.tile (x[None,None,...], (ch,1,1,1)).astype(dtype)
 
 
-def gaussian_blur(img_t : torch.Tensor, sigma : float = 2.0):
+def gaussian_blur(img_t : torch.Tensor, sigma : float = 2.0, kernel_size=None):
     _,C,_,_ = img_t.shape
-    kernel_size = max(3, int(2 * 2 * sigma))
-    if kernel_size % 2 == 0:
-        kernel_size += 1
+    if kernel_size is None:
+        kernel_size = max(3, int(2 * 2 * sigma))
+        if kernel_size % 2 == 0:
+            kernel_size += 1
 
     kernel_t = torch.tensor(get_gaussian_kernel(C, kernel_size, sigma), device=img_t.device)
 

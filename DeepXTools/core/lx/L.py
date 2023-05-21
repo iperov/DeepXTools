@@ -23,7 +23,12 @@ _id_to_string_dict = {
         'en' : 'Load',
         'ru' : 'Загрузить',
     },
-
+    
+    'Reload' : {
+        'en' : 'Reload',
+        'ru' : 'Перезагрузить',
+    },
+    
     'Open':{
         'en' : 'Open',
         'ru' : 'Открыть',
@@ -233,10 +238,7 @@ _id_to_string_dict = {
 
     
 
-    'QxDataGenerator.Reload' : {
-        'en' : 'Reload',
-        'ru' : 'Перезагрузить',
-    },
+    
 
     'QxDataGenerator.Mode.Fit' : {
         'en' : 'Fit',

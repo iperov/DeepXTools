@@ -16,7 +16,7 @@ class QxDataGenerator(qx.QVBox):
 
         (self
             .add(QxImageDSRefList(data_gen.mx_image_ds_ref_list))
-            .add(qx.QPushButton().set_text('@(QxDataGenerator.Reload)')
+            .add(qx.QPushButton().set_text('@(Reload)')
                                  .inline(lambda btn: btn.mx_clicked.listen(lambda: data_gen.reload())))
             .add(qx.QMsgNotifyMxTextEmitter(data_gen.mx_error).set_title("<span style='color: red;'>@(Error)</span>"))
             .add_spacer(4)

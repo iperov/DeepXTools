@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Dict
 
+import numpy as np
+
+from common.SSI import MxSSI
 from core import ax, mx
 from core.lib import path as lib_path
 from core.lib.image import NPImage
@@ -20,55 +21,6 @@ class MxPreview(mx.Disposable):
     class SourceType(Enum):
         DataGenerator = auto()
         Directory = auto()
-
-
-
-    @dataclass(frozen=True)
-    class Sample:
-        image_name     : str|None     = None
-        image_np       : NPImage|None = None
-        target_mask_np : NPImage|None = None
-        pred_image_np  : NPImage|None = None
-        pred_mask_np   : NPImage|None = None
-
-        @staticmethod
-        def from_state(state : dict) -> MxPreview.Sample|None:
-            """Try to construct Sample from state. If state is not valid, returns None."""
-            try:
-                sample = MxPreview.Sample(
-                        image_name     = image_name if (image_name := state.get('image_name', None)) is not None else None,
-                        image_np       = NPImage(image_np) if (image_np := state.get('image_np', None)) is not None else None,
-                        target_mask_np = NPImage(target_mask_np) if (target_mask_np := state.get('target_mask_np', None)) is not None else None,
-                        pred_image_np  = NPImage(pred_image_np) if (pred_image_np := state.get('pred_image_np', None)) is not None else None,
-                        pred_mask_np   = NPImage(pred_mask_np) if (pred_mask_np := state.get('pred_mask_np', None)) is not None else None)
-                return sample
-            except Exception as e:
-                return None
-
-        def get_state(self) -> dict:
-            return {'image_name'     : self.image_name if self.image_name is not None else None,
-                    'image_np'       : self.image_np.HWC() if self.image_np is not None else None,
-                    'target_mask_np' : self.target_mask_np.HWC() if self.target_mask_np is not None else None,
-                    'pred_image_np'  : self.pred_image_np.HWC() if self.pred_image_np is not None else None,
-                    'pred_mask_np'   : self.pred_mask_np.HWC() if self.pred_mask_np is not None else None}
-
-    @dataclass(frozen=True)
-    class SampleDict:
-        samples : Dict[str, MxPreview.Sample|None] = field(default_factory=dict)
-
-        @staticmethod
-        def from_state(state : dict) -> MxPreview.SampleDict|None:
-            """Try to construct SampleDict from state. If state is not valid, returns None."""
-            try:
-                return MxPreview.SampleDict(
-                        samples = { name : MxPreview.Sample.from_state(sample_state) for name, sample_state in state.get('samples', {}).items() } )
-            except Exception as e:
-                print(e)
-                return None
-
-        def get_state(self) -> dict:
-            return {'samples' :  { name : sample.get_state() for name, sample in self.samples.items() } }
-
 
     def __init__(self, data_generator_src : MxDataGenerator,
                        data_generator_dst : MxDataGenerator,
@@ -87,7 +39,7 @@ class MxPreview(mx.Disposable):
         self._imagespaths = []
 
         self._mx_error = mx.TextEmitter().dispose_with(self)
-        self._mx_sample_dict = mx.Property[MxPreview.SampleDict|None]( MxPreview.SampleDict.from_state(sample_dict_state) if (sample_dict_state := state.get('sample_dict_state', None)) is not None else None ).dispose_with(self)
+        self._mx_ssi_sheet = mx.Property[MxSSI.Sheet]( MxSSI.Sheet.from_state(ssi_sheet_state) if (ssi_sheet_state := state.get('ssi_sheet_state', None)) is not None else MxSSI.Sheet() ).dispose_with(self)
 
         self._source_type_disp_bag = mx.Disposable().dispose_with(self)
         self._mx_source_type = mx.SingleChoice[MxPreview.SourceType](None,  avail=lambda: [*MxPreview.SourceType],
@@ -102,9 +54,9 @@ class MxPreview(mx.Disposable):
     def mx_error(self) -> mx.ITextEmitter_r:
         return self._mx_error
     @property
-    def mx_sample_dict(self) -> mx.IProperty_r[SampleDict|None]:
-        """Current preview samples."""
-        return self._mx_sample_dict
+    def mx_ssi_sheet(self) -> mx.IProperty_r[MxSSI.Sheet]:
+        """Current SSI sheet"""
+        return self._mx_ssi_sheet
     @property
     def mx_source_type(self) -> mx.ISingleChoice[SourceType]: return self._mx_source_type
     @property
@@ -169,31 +121,39 @@ class MxPreview(mx.Disposable):
                                                 pred_dst_image=True,
                                                 pred_dst_mask=True,
                                                 pred_swap_image=True,
-                                                pred_swap_mask=True)))
+                                                pred_swap_mask=True,
+                                                pred_src_enhance=True,
+                                                pred_swap_enhance=True,
+                                                )))
 
         if step_task.succeeded:
+            step_task_result = step_task.result
+            sections = {}
 
-            self._mx_sample_dict.set(
-                MxPreview.SampleDict(samples={  'src' : MxPreview.Sample(   image_name     = gen_src_result.image_paths[0].name,
-                                                                            image_np       = gen_src_result.image_np[0],
-                                                                            #target_mask_np = gen_src_result.target_mask_np[0],
-                                                                            pred_image_np  = step_task.result.pred_src_image_np[0],
-                                                                            pred_mask_np   = step_task.result.pred_src_mask_np[0] ),
+            sections['src'] = MxSSI.Grid( { (0,0) : MxSSI.Image(image=gen_src_result.image_np[0], caption=gen_src_result.image_paths[0].name),
+                                            (0,1) : MxSSI.Image(image=step_task_result.pred_src_image_np[0] if step_task_result.pred_src_image_np is not None else None, caption='@(QxPreview.Predicted_image)'),
+                                            (0,2) : MxSSI.Image(image=step_task_result.pred_src_mask_np[0] if step_task_result.pred_src_mask_np is not None else None, caption='@(QxPreview.Predicted_mask)')} )
 
-                                                'dst' : MxPreview.Sample(   image_name     = gen_dst_result.image_paths[0].name,
-                                                                            image_np       = gen_dst_result.image_np[0],
-                                                                            #target_mask_np = gen_dst_result.target_mask_np[0],
-                                                                            pred_image_np  = step_task.result.pred_dst_image_np[0],
-                                                                            pred_mask_np   = step_task.result.pred_dst_mask_np[0] ),
+            if step_task_result.pred_src_enhance_np is not None:
+                sections['src_enhance'] = MxSSI.Grid( { (0,0) : MxSSI.Image(image=gen_src_result.image_np[0], caption=gen_src_result.image_paths[0].name),
+                                                        (0,1) : MxSSI.Image(image=step_task_result.pred_src_enhance_np[0], caption='@(QxPreview.Predicted_image)'),
+                                                        (0,2) : MxSSI.Image(image=step_task_result.pred_src_mask_np[0] if step_task_result.pred_src_mask_np is not None else None, caption='@(QxPreview.Predicted_mask)') } )
 
-                                                'swap' : MxPreview.Sample(  image_name     = gen_dst_result.image_paths[0].name,
-                                                                            image_np       = gen_dst_result.image_np[0],
-                                                                            #target_mask_np = gen_dst_result.target_mask_np[0],
-                                                                            pred_image_np  = step_task.result.pred_swap_image_np[0],
-                                                                            pred_mask_np   = step_task.result.pred_swap_mask_np[0] ),
+            sections['dst'] = MxSSI.Grid( { (0,0) : MxSSI.Image(image=gen_dst_result.image_np[0], caption=gen_dst_result.image_paths[0].name),
+                                            (0,1) : MxSSI.Image(image=step_task_result.pred_dst_image_np[0] if step_task_result.pred_dst_image_np is not None else None, caption='@(QxPreview.Predicted_image)'),
+                                            (0,2) : MxSSI.Image(image=step_task_result.pred_dst_mask_np[0] if step_task_result.pred_dst_mask_np is not None else None, caption='@(QxPreview.Predicted_mask)')  } )
 
-                                            }))
+            sections['swap'] = MxSSI.Grid( {(0,0) : MxSSI.Image(image=gen_dst_result.image_np[0], caption=gen_dst_result.image_paths[0].name),
+                                            (0,1) : MxSSI.Image(image=step_task_result.pred_swap_image_np[0] if step_task_result.pred_swap_image_np is not None else None, caption='@(QxPreview.Predicted_image)'),
+                                            (0,2) : MxSSI.Image(image=step_task_result.pred_swap_mask_np[0] if step_task_result.pred_swap_mask_np is not None else None, caption='@(QxPreview.Predicted_mask)') } )
 
+            if step_task_result.pred_swap_enhance_np is not None:
+                sections['swap_enhance'] = MxSSI.Grid( {(0,0) : MxSSI.Image(image=gen_dst_result.image_np[0], caption=gen_dst_result.image_paths[0].name),
+                                                        (0,1) : MxSSI.Image(image=step_task_result.pred_swap_enhance_np[0], caption='@(QxPreview.Predicted_image)'),
+                                                        (0,2) : MxSSI.Image(image=step_task_result.pred_swap_mask_np[0] if step_task_result.pred_swap_mask_np is not None else None, caption='@(QxPreview.Predicted_mask)') } )
+
+
+            self._mx_ssi_sheet.set(MxSSI.Sheet(sections=sections))
 
         else:
             yield ax.cancel(step_task.error)
@@ -233,15 +193,19 @@ class MxPreview(mx.Disposable):
         self._directory_disp_bag = mx.Disposable()
         self._directory_tg = ax.TaskGroup()
 
-        self._mx_directory_image_idx = mx.Number(self._state['directory_state'].get('directory_image_idx', 0), mx.NumberConfig(min=0, max=len(self._imagespaths)-1)).dispose_with(self._directory_disp_bag)
-        self._mx_directory_image_idx.listen(lambda _: self._infer_directory_sample())
+        self._mx_directory_image_idx = mx.Number(0, mx.NumberConfig(min=0, max=len(self._imagespaths)-1)).dispose_with(self._directory_disp_bag)
+        self._mx_directory_image_idx.set( self._state['directory_state'].get('directory_image_idx', 0) )
+        self._mx_directory_image_idx.listen(lambda _: self.update_directory_sample())
 
-        self._infer_directory_sample()
+        self.update_directory_sample()
 
         return True
 
     @ax.task
-    def _infer_directory_sample(self):
+    def update_directory_sample(self):
+        """
+        Avail when `mx_source_type == Directory` and `mx_directory_path.mx_path is not None`
+        """
         yield ax.switch_to(self._main_thread)
         yield ax.attach_to(self._directory_tg, cancel_all=True)
 
@@ -249,7 +213,6 @@ class MxPreview(mx.Disposable):
             yield ax.cancel()
 
         idx = self._mx_directory_image_idx.get()
-
 
         model = self._model
         imagepath = self._imagespaths[idx]
@@ -263,23 +226,30 @@ class MxPreview(mx.Disposable):
             err = e
 
         if err is None:
-            yield ax.wait(step_task := model.step(MxModel.StepRequest(dst_image_np=[image_np], pred_swap_image=True, pred_swap_mask=True)))
-
+            yield ax.wait(step_task := model.step(MxModel.StepRequest(dst_image_np=[image_np],
+                                                                      pred_swap_image=True,
+                                                                      pred_swap_enhance=True,
+                                                                      pred_swap_mask=True)))
             if step_task.succeeded:
-                pred_swap_image_np = step_task.result.pred_swap_image_np[0]
-                pred_swap_mask_np = step_task.result.pred_swap_mask_np[0]
+                step_task_result = step_task.result
+                pred_swap_image_np = step_task_result.pred_swap_image_np[0]
+                pred_swap_mask_np = step_task_result.pred_swap_mask_np[0]
             else:
                 err = step_task.error
 
         yield ax.switch_to(self._main_thread)
 
         if err is None:
-            self._mx_sample_dict.set(
-                MxPreview.SampleDict(samples={  'swap' : MxPreview.Sample(  image_name     = imagepath.name,
-                                                                            image_np       = image_np,
-                                                                            pred_image_np  = pred_swap_image_np,
-                                                                            pred_mask_np   = pred_swap_mask_np ),
-                                            }))
+            sections = {'swap' : MxSSI.Grid( {  (0,0) : MxSSI.Image(image=image_np, caption=imagepath.name),
+                                                (0,1) : MxSSI.Image(image=pred_swap_image_np, caption='@(QxPreview.Predicted_image)'),
+                                                (0,2) : MxSSI.Image(image=pred_swap_mask_np, caption='@(QxPreview.Predicted_mask)') } ), }
+
+            if step_task_result.pred_swap_enhance_np is not None:
+                sections['swap_enhance'] = MxSSI.Grid( {(0,0) : MxSSI.Image(image=image_np, caption=imagepath.name),
+                                                        (0,1) : MxSSI.Image(image=step_task_result.pred_swap_enhance_np[0], caption='@(QxPreview.Predicted_image)'),
+                                                        (0,2) : MxSSI.Image(image=step_task_result.pred_swap_mask_np[0] if step_task_result.pred_swap_mask_np is not None else None, caption='@(QxPreview.Predicted_mask)') } )
+
+            self._mx_ssi_sheet.set(MxSSI.Sheet(sections=sections))
 
         else:
             self._mx_error.emit(str(err))
@@ -288,7 +258,7 @@ class MxPreview(mx.Disposable):
     def get_state(self) -> dict:
         # Also updates current state in order to save nested controls
         d = self._state
-        d['sample_dict_state'] = sample_dict_state.get_state() if (sample_dict_state := self._mx_sample_dict.get()) else None
+        d['ssi_sheet_state'] = self._mx_ssi_sheet.get().get_state()
         d['source_type'] = self._mx_source_type.get().value
 
         if self._mx_source_type.get() == MxPreview.SourceType.Directory:

@@ -167,10 +167,14 @@ class MxExport(mx.Disposable):
 
         if err is None:
 
-            yield ax.wait(step_task := model.step(MxModel.StepRequest(dst_image_np=[image_np], pred_swap_image=True, pred_swap_mask=True)))
+            yield ax.wait(step_task := model.step(MxModel.StepRequest(  dst_image_np=[image_np],
+                                                                        pred_swap_image=True,
+                                                                        pred_swap_mask=True,
+                                                                        pred_swap_enhance=True,
+                                                                        )))
 
             if step_task.succeeded:
-                pred_swap_image_np = step_task.result.pred_swap_image_np[0]
+                pred_swap_image_np = step_task.result.pred_swap_enhance_np[0] if step_task.result.pred_swap_enhance_np is not None else step_task.result.pred_swap_image_np[0]
                 pred_swap_mask_np = step_task.result.pred_swap_mask_np[0]
             else:
                 err = step_task.error

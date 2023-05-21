@@ -16,7 +16,7 @@ class QxDataGenerator(qx.QVBox):
 
         (self
             .add(QxImageDSRefList(data_gen.mx_image_ds_ref_list))
-            .add(qx.QPushButton().set_text('@(QxDataGenerator.Reload)')
+            .add(qx.QPushButton().set_text('@(Reload)')
                                  .inline(lambda btn: btn.mx_clicked.listen(lambda: data_gen.reload())))
             .add(qx.QMsgNotifyMxTextEmitter(data_gen.mx_error).set_title("<span style='color: red;'>@(Error)</span>"))
             .add_spacer(4)
@@ -89,6 +89,23 @@ class QxDataGenerator(qx.QVBox):
                         .add(qx.QDoubleSpinBoxMxNumber(data_gen.mx_image_deform_intensity))
                     .grid(), align=qx.Align.RightF )
 
+        transform_holder.add_spacer(8)
+        transform_holder.add( qx.QGrid().set_spacing(1).v_compact().row(0)
+                                .add(qx.QLabel().set_text('@(QxDataGenerator.Border_type)'), align=qx.Align.RightF, col_span=1)
+                                .add(qx.QComboBoxMxSingleChoice(data_gen.mx_border_type,
+                                                                stringifier=lambda val: {MxDataGenerator.BorderType.CONSTANT: '@(QxDataGenerator.Border_type.CONSTANT)',
+                                                                                         MxDataGenerator.BorderType.REFLECT: '@(QxDataGenerator.Border_type.REFLECT)',
+                                                                                         MxDataGenerator.BorderType.REPLICATE: '@(QxDataGenerator.Border_type.REPLICATE)',
+                                                                                         }[val] ))
+                            .next_row()
+                                .add(qx.QLabel().set_text('@(QxDataGenerator.Decrease_chance_similar)'), align=qx.Align.RightF, col_span=1)
+                                .add( qx.QHBox()
+                                        .add(qx.QCheckBoxMxFlag(data_gen.mx_dcs))
+                                        .add(computing_lbl := qx.QLabel().set_text('@(Computing)...').hide() ))
+                            .grid(), align=qx.Align.RightF )
+
+
+        data_gen.mx_dcs_computing.reflect(lambda b: computing_lbl.set_visible(b) )
 
     @ax.task
     def _gen_preview_task(self, tg : ax.TaskGroup, holder : qx.QVBox):

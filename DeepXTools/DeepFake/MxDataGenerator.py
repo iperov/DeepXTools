@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
+import numpy as np
 import numpy.random as nprnd
 
 from common.ImageDS import ImageDSInfo, MxImageDSRefList
 from core import ax, mx
 from core.lib import index as lib_index
 from core.lib import path as lib_path
-from core.lib.image import NPImage
+from core.lib.image import LSHash64, LSHash64Similarity, NPImage
 from core.lib.image import aug as lib_aug
 
 
@@ -27,6 +28,8 @@ class MxDataGenerator(mx.Disposable):
         image_np : List[NPImage]
         target_mask_np : List[NPImage]
 
+    BorderType = NPImage.Border
+
     def __init__(self,  default_rnd_flip : bool = True,
                         state : dict = None):
         super().__init__()
@@ -35,6 +38,7 @@ class MxDataGenerator(mx.Disposable):
         self._tg = ax.TaskGroup().dispose_with(self)
         self._ds_tg = ax.TaskGroup().dispose_with(self)
         self._ds_thread = ax.Thread('ds_thread').dispose_with(self)
+        self._dcs_pool = ax.ThreadPool().dispose_with(self)
         self._job_thread = ax.Thread('job_thread').dispose_with(self)
         self._job_thread_pool = ax.ThreadPool(name='DataGeneratorThreadPool').dispose_with(self)
 
@@ -57,11 +61,20 @@ class MxDataGenerator(mx.Disposable):
         self._mx_rnd_ty_var = mx.Number(state.get('rnd_ty_var', 0.30), config=mx.NumberConfig(min=0.0, max=2.0, step=0.01, decimals=2)).dispose_with(self)
         self._mx_rnd_scale_var = mx.Number(state.get('rnd_scale_var', 0.30), config=mx.NumberConfig(min=0.0, max=4.0, step=0.01, decimals=2)).dispose_with(self)
         self._mx_rnd_rot_deg_var = mx.Number(state.get('rnd_rot_deg_var', 20), config=mx.NumberConfig(min=0, max=180)).dispose_with(self)
-
         self._mx_rnd_flip = mx.Flag( state.get('rnd_flip', default_rnd_flip) ).dispose_with(self)
 
         self._mx_transform_intensity = mx.Number(state.get('transform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
-        self._mx_image_deform_intensity = mx.Number(state.get('image_deform_intensity', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
+        self._mx_image_deform_intensity = mx.Number(state.get('image_deform_intensity', 0.5), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
+
+        self._mx_border_type = mx.SingleChoice[MxDataGenerator.BorderType]( MxDataGenerator.BorderType(state.get('border_type', MxDataGenerator.BorderType.REPLICATE.value)),
+                                                                            avail=lambda: [x for x in [ MxDataGenerator.BorderType.CONSTANT,
+                                                                                                        MxDataGenerator.BorderType.REFLECT,
+                                                                                                        MxDataGenerator.BorderType.REPLICATE]]).dispose_with(self)
+
+        self._mx_dcs = mx.Flag( state.get('dcs', False) ).dispose_with(self)
+        self._mx_dcs.listen(lambda b: self.reload())
+
+        self._mx_dcs_computing = mx.Flag(False).dispose_with(self)
 
         self.reload()
 
@@ -104,7 +117,16 @@ class MxDataGenerator(mx.Disposable):
     @property
     def mx_image_deform_intensity(self) -> mx.INumber:
         return self._mx_image_deform_intensity
-
+    @property
+    def mx_border_type(self) -> mx.ISingleChoice[BorderType]:
+        return self._mx_border_type
+    @property
+    def mx_dcs(self) -> mx.IFlag:
+        return self._mx_dcs
+    @property
+    def mx_dcs_computing(self) -> mx.IFlag_r:
+        """Indicates that DCS currently computing"""
+        return self._mx_dcs_computing
     @property
     def workers_count(self) -> int: return self._job_thread_pool.count
 
@@ -124,6 +146,9 @@ class MxDataGenerator(mx.Disposable):
 
                 'transform_intensity' : self._mx_transform_intensity.get(),
                 'image_deform_intensity' : self._mx_image_deform_intensity.get(),
+
+                'border_type' : self._mx_border_type.get().value,
+                'dcs' : self._mx_dcs.get(),
                 }
 
     @ax.protected_task
@@ -132,6 +157,7 @@ class MxDataGenerator(mx.Disposable):
         yield ax.switch_to(self._main_thread)
 
         self._reloading = True
+        self._mx_dcs_computing.set(False)
 
         yield ax.attach_to(self._ds_tg, cancel_all=True)
 
@@ -167,11 +193,66 @@ class MxDataGenerator(mx.Disposable):
         self._reloading = False
 
         if err is None:
+            all_image_mask_paths_len = len(all_image_mask_paths)
             self._image_mask_paths = all_image_mask_paths
-            self._image_mask_indexer = lib_index.ProbIndexer1D(len(all_image_mask_paths))
+            self._image_mask_indexer = indexer = lib_index.ProbIndexer1D(all_image_mask_paths_len)
         else:
             self._mx_error.emit(str(err))
             yield ax.cancel(err)
+
+        if self._mx_dcs.get() and all_image_mask_paths_len != 0:
+            self._mx_dcs_computing.set(True)
+
+            yield ax.switch_to(self._ds_thread)
+
+            hash_sim = LSHash64Similarity(all_image_mask_paths_len, similarity_factor=8)
+
+            dcs_tasks = ax.TaskSet()
+            dcs_pool = self._dcs_pool
+            n_hashed = 0
+
+            while err is None:
+                while dcs_tasks.count < dcs_pool.count*10 and n_hashed < all_image_mask_paths_len:
+                    dcs_tasks.add( self._compute_hash(dcs_pool, idx=n_hashed, path=all_image_mask_paths[n_hashed][0]) )
+
+                    n_hashed += 1
+
+                if dcs_tasks.empty and n_hashed == all_image_mask_paths_len:
+                    # Done
+                    yield ax.switch_to(self._main_thread)
+
+                    sim = hash_sim.get_similarities()
+                    sim = (sim / sim.min()).astype(np.int32)
+
+                    # Update probabilities in Indexer
+                    indexer.set_probs(sim)
+                    break
+
+                for t in dcs_tasks.fetch(finished=True):
+
+                    if t.succeeded:
+                        idx, hash = t.result
+                        hash_sim.add(idx, LSHash64(hash) )
+                    else:
+                        err = t.error or Exception('Unknown')
+                        break
+
+                yield ax.sleep(0.005)
+
+            yield ax.switch_to(self._main_thread)
+
+        self._mx_dcs_computing.set(False)
+
+        if err is not None:
+            self._mx_error.emit(str(err))
+            yield ax.cancel(err)
+
+    @ax.task
+    def _compute_hash(self, pool : ax.ThreadPool, idx : int, path : Path):
+        yield ax.switch_to(pool)
+
+        return idx, NPImage.from_file(path).get_ls_hash64()
+
 
 
     @ax.task
@@ -210,6 +291,8 @@ class MxDataGenerator(mx.Disposable):
         transform_intensity  = self._mx_transform_intensity.get()
         image_deform_intensity = self._mx_image_deform_intensity.get()
 
+        border_type = self._mx_border_type.get()
+
         yield ax.switch_to(self._job_thread_pool)
 
         out_image_paths = []
@@ -243,8 +326,8 @@ class MxDataGenerator(mx.Disposable):
                                                                              scale=nprnd.uniform(-rnd_scale_var, rnd_scale_var),
                                                                              rot_deg=nprnd.uniform(-rnd_rot_deg_var, rnd_rot_deg_var)) )
 
-            img_deformed = geo_aug.transform(img, W, H, center_fit=True, transform_intensity=transform_intensity, deform_intensity=image_deform_intensity, )
-            img          = geo_aug.transform(img, W, H, center_fit=True, transform_intensity=transform_intensity, deform_intensity=0.0, )
+            img_deformed = geo_aug.transform(img, W, H, center_fit=True, transform_intensity=transform_intensity, deform_intensity=image_deform_intensity, border=border_type)
+            img          = geo_aug.transform(img, W, H, center_fit=True, transform_intensity=transform_intensity, deform_intensity=0.0, border=border_type)
             mask         = geo_aug.transform(mask, W, H, center_fit=True, transform_intensity=transform_intensity, deform_intensity=0.0, )
 
             if rnd_flip and nprnd.randint(2) == 0:

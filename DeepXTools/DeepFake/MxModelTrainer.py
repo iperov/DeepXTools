@@ -26,15 +26,20 @@ class MxModelTrainer(mx.Disposable):
         self._mx_metrics_graph = MxGraph(state=state.get('metrics_graph_state', None)).dispose_with(self)#
 
         self._mx_error = mx.TextEmitter().dispose_with(self)
-        self._mx_batch_size = mx.Number(state.get('batch_size', 4), config=mx.NumberConfig(min=1, max=64, step=1)).dispose_with(self)
+        self._mx_batch_size = mx.Number(state.get('batch_size', 8), config=mx.NumberConfig(min=1, max=64, step=1)).dispose_with(self)
         self._mx_batch_acc = mx.Number(state.get('batch_acc', 1), config=mx.NumberConfig(min=1, max=512, step=1)).dispose_with(self)
         self._mx_learning_rate = mx.Number(state.get('learning_rate', 50), config=mx.NumberConfig(min=1, max=1000, step=1)).dispose_with(self)
 
         self._mx_mse_power = mx.Number(state.get('mse_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
-        self._mx_dssim_x4_power = mx.Number(state.get('dssim_x4_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
-        self._mx_dssim_x8_power = mx.Number(state.get('dssim_x8_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
+        self._mx_dssim_x4_power = mx.Number(state.get('dssim_x4_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
+        self._mx_dssim_x8_power = mx.Number(state.get('dssim_x8_power', 0.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
         self._mx_dssim_x16_power = mx.Number(state.get('dssim_x16_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
         self._mx_dssim_x32_power = mx.Number(state.get('dssim_x32_power', 1.0), config=mx.NumberConfig(min=0.0, max=1.0, step=0.1, decimals=1)).dispose_with(self)
+
+        self._mx_enhancer_gan_power = mx.Number(state.get('enhancer_gan_power', 0.2), config=mx.NumberConfig(min=0.0, max=1.0, step=0.01, decimals=2)).dispose_with(self)
+
+        self._mx_masked_training = mx.Flag(state.get('masked_training', True)).dispose_with(self)
+        self._mx_edges_priority = mx.Flag(state.get('edges_priority', False)).dispose_with(self)
 
         self._mx_training = mx.Flag(False).dispose_with(self)
         self._mx_iteration_time = mx.Property[float](0.0).dispose_with(self)
@@ -62,6 +67,12 @@ class MxModelTrainer(mx.Disposable):
     def mx_dssim_x16_power(self) -> mx.INumber: return self._mx_dssim_x16_power
     @property
     def mx_dssim_x32_power(self) -> mx.INumber: return self._mx_dssim_x32_power
+    @property
+    def mx_enhancer_gan_power(self) -> mx.INumber: return self._mx_enhancer_gan_power
+    @property
+    def mx_masked_training(self) -> mx.IFlag: return self._mx_masked_training
+    @property
+    def mx_edges_priority(self) -> mx.IFlag: return self._mx_edges_priority
 
     @property
     def mx_training(self) -> mx.IFlag_r:
@@ -89,6 +100,9 @@ class MxModelTrainer(mx.Disposable):
                 'dssim_x8_power' : self._mx_dssim_x8_power.get(),
                 'dssim_x16_power' : self._mx_dssim_x16_power.get(),
                 'dssim_x32_power' : self._mx_dssim_x32_power.get(),
+                'enhancer_gan_power' : self._mx_enhancer_gan_power.get(),
+                'masked_training' : self._mx_masked_training.get(),
+                'edges_priority' : self._mx_edges_priority.get(),
                 'training' : self._mx_training.get(),
                 'metrics_graph_state' : metrics_graph_t.result,
                 }
@@ -133,6 +147,10 @@ class MxModelTrainer(mx.Disposable):
             dssim_x8_power = self._mx_dssim_x8_power.get()
             dssim_x16_power = self._mx_dssim_x16_power.get()
             dssim_x32_power = self._mx_dssim_x32_power.get()
+            enhancer_gan_power = self._mx_enhancer_gan_power.get()
+
+            masked_training = self._mx_masked_training.get()
+            edges_priority = self._mx_edges_priority.get()
 
             self._mx_iteration_time.set(iteration_time)
 
@@ -172,12 +190,15 @@ class MxModelTrainer(mx.Disposable):
                                                 dst_target_image_np = dst_data.image_np,
                                                 dst_target_mask_np  = dst_data.target_mask_np,
 
+                                                mse_power=mse_power,
                                                 dssim_x4_power=dssim_x4_power,
                                                 dssim_x8_power=dssim_x8_power,
                                                 dssim_x16_power=dssim_x16_power,
                                                 dssim_x32_power=dssim_x32_power,
-                                                mse_power=mse_power,
-                                                masked_training=True,
+                                                enhancer_gan_power=enhancer_gan_power,
+
+                                                masked_training=masked_training,
+                                                edges_priority=edges_priority,
 
                                                 batch_acc=batch_acc,
                                                 lr=lr, )))
@@ -187,8 +208,6 @@ class MxModelTrainer(mx.Disposable):
                 iteration_time = t_result.time
                 self._mx_metrics_graph.add({ '@(Metric.Error) src' : t_result.error_src,
                                              '@(Metric.Error) dst' : t_result.error_dst,
-                                             '@(Metric.Accuracy) src' : t_result.accuracy_src,
-                                             '@(Metric.Accuracy) dst' : t_result.accuracy_dst,
                                              '@(Metric.Iteration_time)' : iteration_time,
                                             } )
 

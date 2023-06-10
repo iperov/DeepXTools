@@ -302,6 +302,26 @@ class NPImage:
         img = img.reshape(H,W,C)
 
         return NPImage(img)
+    
+    def channel_exposure(self, exposure) -> NPImage:
+        """```
+        Exposure applied per every channel.
+        
+            channel_exposure    (C,) float
+
+        Image will be forced to f32.
+        ```"""
+        H,W,C = self._img.shape
+
+        if C != exposure.shape[0]:
+            raise Exception('exposure must match C dims')
+
+        img = self.f32(copy=True)._img
+        
+        img *= 2**exposure
+        np.clip(img, 0, 1, out=img)
+        return NPImage(img)
+    
 
     def gaussian_sharpen(self, sigma : float, power : float) -> NPImage:
         """
@@ -340,7 +360,53 @@ class NPImage:
         img = img.reshape(H,W,C)
 
         return NPImage(img)
+    
+    # def fit_in (self, TW = None, TH = None, pad_to_target : bool = False, allow_upscale : bool = False, interp : NPImage.Interp = Interp.LINEAR) -> NPImage:
+    #     """
+    #     fit image in w,h keeping aspect ratio
 
+    #         TW,TH           int/None     target width,height
+
+    #         pad_to_target   bool    pad remain area with zeros
+
+    #         allow_upscale   bool    if image smaller than TW,TH, img will be upscaled
+
+    #         interp          PImage.Interp. value
+
+    #     returns scale float value
+    #     """
+    #     H,W,C = (img := self._img).shape
+
+    #     if TW is not None and TH is None:
+    #         scale = TW / W
+    #     elif TW is None and TH is not None:
+    #         scale = TH / H
+    #     elif TW is not None and TH is not None:
+    #         SW = W / TW
+    #         SH = H / TH
+    #         scale = 1.0
+    #         if SW > 1.0 or SH > 1.0 or (SW < 1.0 and SH < 1.0):
+    #             scale /= max(SW, SH)
+    #     else:
+    #         raise ValueError('TW or TH should be specified')
+
+    #     if not allow_upscale and scale > 1.0:
+    #         scale = 1.0
+
+    #     if scale != 1.0:
+    #         img = cv2.resize (img, ( int(W*scale), int(H*scale) ), interpolation=_cv_inter[interp])
+    #         H,W = img.shape[0:2]
+    #         img = img.reshape( (H,W,C) )
+
+    #     if pad_to_target:
+    #         w_pad = (TW-W) if TW is not None else 0
+    #         h_pad = (TH-H) if TH is not None else 0
+    #         if w_pad != 0 or h_pad != 0:
+    #             img = np.pad(img, ( (0,h_pad), (0,w_pad), (0,0) ))
+        
+    #     return NPImage(img), scale
+            
+    
     def h_flip(self) -> NPImage:
         return NPImage(self._img[:,::-1,:])
     def v_flip(self) -> NPImage:

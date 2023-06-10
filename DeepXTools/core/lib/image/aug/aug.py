@@ -41,6 +41,19 @@ def noise_clouds_mask(W, H=None) -> NPImage:
     img = img.apply(lambda x: x / x.max())
     return img
 
+def rgb_exposure(img : NPImage, r_exposure_var=1.0, g_exposure_var=1.0, b_exposure_var=1.0):
+    C = img.shape[-1]
+    if C != 3:
+        raise ValueError('requires img to be rgb')
+    
+    v = nprnd.uniform(0, max(r_exposure_var, r_exposure_var, r_exposure_var))
+    r = nprnd.uniform(0, r_exposure_var) - v
+    g = nprnd.uniform(0, g_exposure_var) - v
+    b = nprnd.uniform(0, b_exposure_var) - v
+        
+    return img.channel_exposure(exposure = np.float32([b, g, r]))
+
+
 def levels(img : NPImage, in_b_range=[0.0, 0.25], in_w_range=[0.75, 1.0], in_g_range=[0.5, 1.5],
                           out_b_range=[0.0, 0.25], out_w_range=[0.75, 1.0]):
     C = img.shape[-1]
